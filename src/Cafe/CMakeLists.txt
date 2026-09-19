@@ -142,6 +142,10 @@ add_library(CemuCafe
   HW/Latte/Core/LatteTextureView.cpp
   HW/Latte/Core/LatteTextureView.h
   HW/Latte/Core/LatteThread.cpp
+  HW/Latte/Core/LatteCaptureWindow.cpp
+  HW/Latte/Core/LatteCaptureWindow.h
+  HW/Latte/Core/LatteDisplayListCapture.cpp
+  HW/Latte/Core/LatteDisplayListCapture.h
   HW/Latte/Core/LatteUniformCapture.cpp
   HW/Latte/Core/LatteUniformCapture.h
   HW/Latte/Core/LatteTiming.cpp

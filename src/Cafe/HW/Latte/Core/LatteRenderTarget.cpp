@@ -16,6 +16,7 @@
 #include "Cafe/OS/libs/erreula/erreula.h"
 #include "input/InputManager.h"
 #include "Cafe/OS/libs/swkbd/swkbd.h"
+#include "Cafe/HW/Latte/Core/LatteDisplayListCapture.h"
 #include "Cafe/HW/Latte/Core/LatteUniformCapture.h"
 
 uint32 prevScissorX = 0;
@@ -686,6 +687,7 @@ void LatteRenderTarget_itHLESwapScanBuffer()
 	LatteGPUState.frameCounter++;
 	g_renderer->SwapBuffers(true, true);
 	LatteUniformCapture::GetInstance().NotifyFrameEnd();
+	LatteDisplayListCapture::GetInstance().NotifyFrameEnd();
 
 	catchOpenGLError();
 	performanceMonitor.gpuTime_frameTime.beginMeasuring();
