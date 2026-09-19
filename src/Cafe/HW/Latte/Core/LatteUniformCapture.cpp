@@ -4,35 +4,85 @@
 #include "Cemu/Logging/CemuLogging.h"
 #include "config/ActiveSettings.h"
 
+#include <charconv>
+#include <cstdlib>
+#include <string_view>
+
+namespace
+{
+	// Reads one unsigned override, refusing rather than silently keeping the
+	// default when the value is present but unusable: a typo that quietly captures
+	// the wrong window costs a whole run to discover.
+	uint32 ReadFrameOverride(const char* name, uint32 fallback)
+	{
+		const char* raw = getenv(name);
+		if (raw == nullptr)
+		{
+			return fallback;
+		}
+		const std::string_view text{raw};
+		uint32 value = 0;
+		const auto* end = text.data() + text.size();
+		const auto parsed = std::from_chars(text.data(), end, value);
+		if (parsed.ec != std::errc{} || parsed.ptr != end)
+		{
+			cemuLog_log(LogType::Force, "UniformCapture: {} is set to \"{}\", which is not a whole number of frames; using {}",
+						name, text, fallback);
+			return fallback;
+		}
+		return value;
+	}
+} // namespace
+
 LatteUniformCapture& LatteUniformCapture::GetInstance()
 {
 	static LatteUniformCapture s_instance;
 	return s_instance;
 }
 
-void LatteUniformCapture::Begin()
+void LatteUniformCapture::Arm()
 {
-	m_started = true;
+	m_armed = true;
 	if (!cemuLog_isLoggingEnabled(LogType::UniformCapture))
 	{
 		return;
 	}
+	m_enabled = true;
+	m_startFrame = ReadFrameOverride("CEMU_UNIFORM_CAPTURE_START_FRAME", 0);
+	m_frameCount = ReadFrameOverride("CEMU_UNIFORM_CAPTURE_FRAMES", kDefaultFrames);
+	if (m_frameCount == 0)
+	{
+		cemuLog_log(LogType::Force, "UniformCapture: a window of zero frames captures nothing; using {}",
+					kDefaultFrames);
+		m_frameCount = kDefaultFrames;
+	}
+	cemuLog_log(LogType::Force, "UniformCapture: waiting for frame {}, then capturing {} frames",
+				m_startFrame, m_frameCount);
+	if (m_startFrame == 0)
+	{
+		m_recording = OpenFile();
+	}
+}
+
+bool LatteUniformCapture::OpenFile()
+{
 	const fs::path path = ActiveSettings::GetUserDataPath("uniform-capture.bin");
 	m_file = fopen(path.string().c_str(), "wb");
 	if (m_file == nullptr)
 	{
 		cemuLog_log(LogType::Force, "UniformCapture: cannot open {} for writing; nothing was captured",
 					path.string());
-		return;
+		m_enabled = false;
+		return false;
 	}
-	m_recording = true;
-	cemuLog_log(LogType::Force, "UniformCapture: writing up to {} frames to {}", kMaxFrames,
-				path.string());
+	cemuLog_log(LogType::Force, "UniformCapture: recording from frame {} to {}", m_frameIndex, path.string());
+	return true;
 }
 
 void LatteUniformCapture::Finish(const char* reason)
 {
 	m_recording = false;
+	m_finished = true;
 	if (m_file != nullptr)
 	{
 		fclose(m_file);
@@ -42,7 +92,7 @@ void LatteUniformCapture::Finish(const char* reason)
 	// a capture that silently produced nothing cannot be told from one that was
 	// never switched on.
 	cemuLog_log(LogType::Force,
-				"UniformCapture: {} after {} frames. Draws seen {}, written {}, skipped over budget "
+				"UniformCapture: {} at frame {}. Draws seen {}, written {}, skipped over budget "
 				"{}, bytes {}",
 				reason, m_frameIndex, m_drawsSeen, m_drawsWritten, m_drawsSkippedOverBudget,
 				m_bytesWritten);
@@ -87,17 +137,37 @@ void LatteUniformCapture::RecordDraw(uint32 shaderStageIndex, const LatteDecompi
 
 void LatteUniformCapture::NotifyFrameEnd()
 {
-	if (!m_recording)
+	if (!m_enabled || m_finished)
 	{
 		return;
 	}
-	// Flushed per frame: a run that is stopped before the budget is reached
-	// must still leave a readable file rather than whatever happened to be in
-	// the buffer.
-	fflush(m_file);
+	if (m_recording)
+	{
+		// Flushed per frame: a run that is stopped before the budget is reached
+		// must still leave a readable file rather than whatever happened to be
+		// in the buffer.
+		fflush(m_file);
+	}
 	m_frameIndex++;
 	m_drawsThisFrame = 0;
-	if (m_frameIndex >= kMaxFrames)
+	if (!m_recording)
+	{
+		if (m_frameIndex < m_startFrame)
+		{
+			if (m_frameIndex % kWaitingReportInterval == 0)
+			{
+				cemuLog_log(LogType::Force, "UniformCapture: at frame {} of {} before capture starts",
+							m_frameIndex, m_startFrame);
+			}
+			return;
+		}
+		m_recording = OpenFile();
+		if (!m_recording)
+		{
+			return;
+		}
+	}
+	if (m_frameIndex >= m_startFrame + m_frameCount)
 	{
 		Finish("reached its frame budget");
 	}
