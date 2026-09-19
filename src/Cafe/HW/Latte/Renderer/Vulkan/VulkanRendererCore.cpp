@@ -12,6 +12,7 @@
 #include "imgui/imgui_impl_vulkan.h"
 #include "Cafe/GameProfile/GameProfile.h"
 #include "util/helpers/helpers.h"
+#include "Cafe/HW/Latte/Core/LatteUniformCapture.h"
 
 extern bool hasValidFramebufferAttached;
 
@@ -446,6 +447,10 @@ void VulkanRenderer::uniformData_updateUniformVars(uint32 shaderStageIndex, Latt
 			}
 		}
 	}
+	if (LatteUniformCapture::GetInstance().IsRecording())
+	{
+		LatteUniformCapture::GetInstance().RecordDraw(shaderStageIndex, shader, uniformBuf, shader->uniform.uniformRangeSize);
+	}
 	dynamicOffsetInfo.uniformVarBufferOffset[shaderStageIndex] = uniformData_uploadUniformDataBufferGetOffset({(uint8*)uniformBuf, shader->uniform.uniformRangeSize});
 }
 
@@ -493,7 +498,11 @@ void VulkanRenderer::uniformData_updateUniformVarsIncremental(uint32 shaderStage
 	}
 	if (hasChange)
 	{
-		dynamicOffsetInfo.uniformVarBufferOffset[shaderStageIndex] = uniformData_uploadUniformDataBufferGetOffset({(uint8*)uniformBuf, shader->uniform.uniformRangeSize});
+		if (LatteUniformCapture::GetInstance().IsRecording())
+	{
+		LatteUniformCapture::GetInstance().RecordDraw(shaderStageIndex, shader, uniformBuf, shader->uniform.uniformRangeSize);
+	}
+	dynamicOffsetInfo.uniformVarBufferOffset[shaderStageIndex] = uniformData_uploadUniformDataBufferGetOffset({(uint8*)uniformBuf, shader->uniform.uniformRangeSize});
 		stageUniformModifiedMask |= (1 << shaderStageIndex);
 	}
 }

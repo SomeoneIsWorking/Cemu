@@ -38,6 +38,7 @@ enum class LogType : sint32
 	NN_BOSS = 25,
 	NN_SL = 26,
 
+	UniformCapture = 27, // assembled shader uniform buffers, for transform recovery
 	TextureReadback = 29,
 	ProcUi = 39,
 	nlibcurl = 41,
