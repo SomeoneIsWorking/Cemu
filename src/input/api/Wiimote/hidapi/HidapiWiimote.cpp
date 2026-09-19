@@ -27,7 +27,19 @@ std::optional<std::vector<uint8>> HidapiWiimote::read_data() {
 
 std::vector<WiimoteDevicePtr> HidapiWiimote::get_devices() {
     std::vector<WiimoteDevicePtr> wiimote_devices;
-    SDL_hid_init();
+    // SDL_hid_enumerate dispatches through a platform function pointer that
+    // SDL_hid_init is what installs. Where hidapi is unavailable -- a headless
+    // session with no udev or hidraw access, for one -- init fails and the
+    // call jumps through null, taking the process down from the Wiimote
+    // connection thread before a game has even loaded. Measured as a SIGSEGV
+    // at PLATFORM_hid_enumerate with no Wiimote anywhere near the machine.
+    const auto init_result = SDL_hid_init();
+    if (init_result < 0) {
+        cemuLog_log(LogType::Force,
+                    "hidapi is unavailable ({}), so no Wiimote can be detected: {}",
+                    init_result, SDL_GetError());
+        return wiimote_devices;
+    }
     const auto device_enumeration = SDL_hid_enumerate(WIIMOTE_VENDOR_ID, 0x0);
 
     for (auto it = device_enumeration; it != nullptr; it = it->next){

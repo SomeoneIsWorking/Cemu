@@ -1,6 +1,7 @@
 add_library(CemuInput
 	InputManager.cpp
 	InputManager.h
+	VPADInputHooks.h
 	ControllerFactory.cpp
 	ControllerFactory.h
 	api/ControllerState.h
