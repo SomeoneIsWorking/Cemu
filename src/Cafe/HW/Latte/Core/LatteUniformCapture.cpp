@@ -1,5 +1,6 @@
 #include "Cafe/HW/Latte/Core/LatteUniformCapture.h"
 
+#include "Cafe/HW/Latte/Core/Latte.h"
 #include "Cafe/HW/Latte/LegacyShaderDecompiler/LatteDecompiler.h"
 #include "Cemu/Logging/CemuLogging.h"
 #include "config/ActiveSettings.h"
@@ -93,9 +94,10 @@ void LatteUniformCapture::Finish(const char* reason)
 	// never switched on.
 	cemuLog_log(LogType::Force,
 				"UniformCapture: {} at frame {}. Draws seen {}, written {}, skipped over budget "
-				"{}, bytes {}",
+				"{}, bytes {}. Draws with no uniform block source {}, buffer groups dropped over "
+				"the per-draw cap {}",
 				reason, m_frameIndex, m_drawsSeen, m_drawsWritten, m_drawsSkippedOverBudget,
-				m_bytesWritten);
+				m_bytesWritten, m_drawsWithoutSources, m_bufferGroupsDropped);
 }
 
 void LatteUniformCapture::RecordDraw(uint32 shaderStageIndex, const LatteDecompilerShader* shader,
@@ -115,8 +117,11 @@ void LatteUniformCapture::RecordDraw(uint32 shaderStageIndex, const LatteDecompi
 		m_drawsSkippedOverBudget++;
 		return;
 	}
+	uint32 sources[kMaxBufferGroups * 2];
+	const uint32 sourceCount = CollectBufferSources(shader, sources);
 	// One self-describing record: the layout fields are what let a reader find
-	// the register and remapped blocks inside the payload without guessing.
+	// the register and remapped blocks inside the payload without guessing,
+	// and the source addresses are what give a draw an identity across frames.
 	const uint32 header[] = {
 		kRecordMagic,
 		m_frameIndex,
@@ -125,14 +130,41 @@ void LatteUniformCapture::RecordDraw(uint32 shaderStageIndex, const LatteDecompi
 		static_cast<uint32>(shader->uniform.loc_uniformRegister),
 		static_cast<uint32>(shader->uniform.count_uniformRegister),
 		static_cast<uint32>(shader->uniform.loc_remapped),
+		sourceCount,
 	};
 	const uint64 hashes[] = {shader->baseHash, shader->auxHash};
 	fwrite(header, sizeof(header), 1, m_file);
 	fwrite(hashes, sizeof(hashes), 1, m_file);
+	fwrite(sources, sizeof(uint32) * 2, sourceCount, m_file);
 	fwrite(uniformData, uniformRangeSize, 1, m_file);
 	m_drawsThisFrame++;
 	m_drawsWritten++;
-	m_bytesWritten += sizeof(header) + sizeof(hashes) + uniformRangeSize;
+	m_bytesWritten += sizeof(header) + sizeof(hashes) + sourceCount * sizeof(uint32) * 2 + uniformRangeSize;
+	if (sourceCount == 0)
+	{
+		m_drawsWithoutSources++;
+	}
+}
+
+uint32 LatteUniformCapture::CollectBufferSources(const LatteDecompilerShader* shader,
+												 uint32* sources)
+{
+	const uint32 registerOffset =
+		LatteBufferCache_getUniformBlockRegisterOffset(shader->shaderType);
+	uint32 count = 0;
+	for (const auto& group : shader->list_remappedUniformEntries_bufferGroups)
+	{
+		if (count >= kMaxBufferGroups)
+		{
+			m_bufferGroupsDropped++;
+			break;
+		}
+		sources[count * 2 + 0] = group.bufferId;
+		sources[count * 2 + 1] =
+			LatteGPUState.contextRegister[registerOffset + group.kcacheBankIdOffset / 4];
+		count++;
+	}
+	return count;
 }
 
 void LatteUniformCapture::NotifyFrameEnd()

@@ -70,29 +70,41 @@ void rectGenerate4thVertex(uint32be* output, uint32be* input0, uint32be* input1,
 		output[f] = _swapEndianU32(output[f]);
 }
 
+uint32 LatteBufferCache_getUniformBlockRegisterOffset(LatteConst::ShaderType shaderType)
+{
+	switch (shaderType)
+	{
+	case LatteConst::ShaderType::Vertex:
+		return mmSQ_VTX_UNIFORM_BLOCK_START;
+	case LatteConst::ShaderType::Pixel:
+		return mmSQ_PS_UNIFORM_BLOCK_START;
+	case LatteConst::ShaderType::Geometry:
+		return mmSQ_GS_UNIFORM_BLOCK_START;
+	default:
+		UNREACHABLE;
+	}
+}
+
 bool LatteBufferCache_LoadRemappedUniforms(LatteDecompilerShader* shader, float* uniformData, bool aluConstDirty, uint32 uniformBufferDirtyMask)
 {
 	bool hasChange = false;
 	uint32 shaderAluConst;
-	uint32 shaderUniformRegisterOffset;
 
 	switch (shader->shaderType)
 	{
 	case LatteConst::ShaderType::Vertex:
 		shaderAluConst = 0x400;
-		shaderUniformRegisterOffset = mmSQ_VTX_UNIFORM_BLOCK_START;
 		break;
 	case LatteConst::ShaderType::Pixel:
 		shaderAluConst = 0;
-		shaderUniformRegisterOffset = mmSQ_PS_UNIFORM_BLOCK_START;
 		break;
 	case LatteConst::ShaderType::Geometry:
 		shaderAluConst = 0; // geometry shader has no ALU const
-		shaderUniformRegisterOffset = mmSQ_GS_UNIFORM_BLOCK_START;
 		break;
 	default:
 		UNREACHABLE;
 	}
+	const uint32 shaderUniformRegisterOffset = LatteBufferCache_getUniformBlockRegisterOffset(shader->shaderType);
 
 	// sourced from uniform registers
 	if (aluConstDirty)

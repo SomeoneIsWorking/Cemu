@@ -171,6 +171,10 @@ void LatteCP_ProcessRingbuffer();
 
 void LatteBufferCache_Sync(uint32 maxIndex, uint32 baseInstance, uint32 instanceCount, uint32 attribBufferDirtyMask, uint32 vsUniformBufferDirtyMask, uint32 psUniformBufferDirtyMask, uint32 gsUniformBufferDirtyMask, uint8& stageUniformModifiedMask, bool isIncremental = false);
 bool LatteBufferCache_LoadRemappedUniforms(struct LatteDecompilerShader* shader, float* uniformData, bool aluConstDirty, uint32 uniformBufferDirtyMask);
+// Index into LatteGPUState.contextRegister at which this stage's uniform block base
+// addresses begin. Shared so a reader of those addresses cannot drift from the loader
+// that consumes them.
+uint32 LatteBufferCache_getUniformBlockRegisterOffset(LatteConst::ShaderType shaderType);
 
 void LatteRenderTarget_updateViewport();
 

@@ -15,6 +15,13 @@ struct LatteDecompilerShader;
 // It captures the buffer after both uniform modes have converged on it, so a
 // title driving uniform registers and uniform blocks is recorded the same way.
 //
+// Each record also carries the guest physical address of every uniform block
+// the draw sourced. Values alone cannot say which actor a transform belongs
+// to: draw order is not stable, because objects enter and leave between
+// frames, and matching by position swaps identity whenever two actors pass
+// close. The address is the engine's own storage for that object, so it
+// identifies across ticks without inference.
+//
 // Capture does not begin at the first rendered frame. That frame is the boot
 // logo, whose draws carry no camera at all, so the window has to be placed
 // where a scene is actually on screen: CEMU_UNIFORM_CAPTURE_START_FRAME moves
@@ -52,11 +59,15 @@ class LatteUniformCapture
 	void Arm();
 	bool OpenFile();
 	void Finish(const char* reason);
+	uint32 CollectBufferSources(const LatteDecompilerShader* shader, uint32* sources);
 
 	static constexpr uint32 kDefaultFrames = 4;
 	static constexpr uint32 kMaxDrawsPerFrame = 8192;
 	static constexpr uint64 kMaxBytes = 64ull * 1024ull * 1024ull;
-	static constexpr uint32 kRecordMagic = 0x554E4946; // 'UNIF'
+	static constexpr uint32 kRecordMagic = 0x32494E55; // 'UNI2'
+	// Bounds the per-draw address list. Its only job is to stop a corrupt
+	// shader from writing an unbounded record; real draws use a handful.
+	static constexpr uint32 kMaxBufferGroups = 16;
 	// While waiting for the window, progress is reported this often. A run that
 	// quits early after never reaching its start frame would otherwise be
 	// indistinguishable from one where capture was never switched on.
@@ -75,4 +86,6 @@ class LatteUniformCapture
 	uint64 m_drawsWritten{0};
 	uint64 m_bytesWritten{0};
 	uint64 m_drawsSkippedOverBudget{0};
+	uint64 m_drawsWithoutSources{0};
+	uint64 m_bufferGroupsDropped{0};
 };
