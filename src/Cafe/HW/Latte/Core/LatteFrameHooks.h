@@ -60,6 +60,13 @@ namespace LatteFrameHooks
 	// while a frame is in flight. Passing nullptr restores upstream behaviour.
 	void SetObserver(Observer* observer);
 
+	// Feed a recorded buffer back to the command processor as if the guest had
+	// referenced it. The caller owns the memory and it must outlive the call.
+	// False means it was not submitted, which is a refusal and not a silent
+	// no-op: a replay that quietly drew nothing is indistinguishable from one
+	// that worked.
+	bool SubmitDisplayList(const void* data, uint32_t sizeInBytes);
+
 	// Null until something registers. Callers check it rather than paying a
 	// virtual call per draw for a hook nobody installed.
 	Observer* GetObserver();

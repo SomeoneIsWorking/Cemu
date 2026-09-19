@@ -235,6 +235,29 @@ LatteCMDPtr LatteCP_itSurfaceSync(LatteCMDPtr cmd)
 	return cmd;
 }
 
+// Replay entry point for the first-party runtime.
+//
+// It drives its own DrawPassContext rather than the guest's, so a replayed
+// buffer cannot leave half a draw pass behind in the stream the guest is in
+// the middle of. Everything else -- register state, shaders, buffers -- is
+// whatever the buffer itself sets, exactly as when the guest referenced it.
+bool LatteFrameHooks::SubmitDisplayList(const void* data, uint32_t sizeInBytes)
+{
+	if (data == nullptr || sizeInBytes < 4 || (sizeInBytes % 4) != 0)
+	{
+		return false;
+	}
+	LatteCMDPtr buffer = (LatteCMDPtr)data;
+	DrawPassContext replayCtx;
+	replayCtx.PushCurrentCommandQueuePos(buffer, buffer, buffer + (sizeInBytes / 4));
+	LatteCP_processCommandBuffer(replayCtx);
+	if (replayCtx.isWithinDrawPass())
+	{
+		replayCtx.endDrawPass();
+	}
+	return true;
+}
+
 // called from TCL command queue. Executes a memory command buffer
 void LatteCP_itIndirectBufferDepr(LatteCMDPtr cmd, uint32 nWords)
 {
