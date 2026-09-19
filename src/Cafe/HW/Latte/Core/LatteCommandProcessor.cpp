@@ -4,6 +4,7 @@
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
 #include "Cafe/HW/Latte/Core/LatteDisplayListCapture.h"
+#include "Cafe/HW/Latte/Core/LatteFrameHooks.h"
 #include "Cafe/HW/Latte/Core/LatteShader.h"
 #include "Cafe/HW/Latte/Core/LatteAsyncCommands.h"
 #include "Cafe/HW/Latte/Core/LattePerformanceMonitor.h"
@@ -272,6 +273,10 @@ void LatteCP_itIndirectBuffer(LatteCMDPtr cmd, uint32 nWords, DrawPassContext& d
 		if (LatteDisplayListCapture::GetInstance().IsRecording())
 		{
 			LatteDisplayListCapture::GetInstance().RecordList(physicalAddress, sizeInDWords);
+		}
+		if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
+		{
+			observer->OnDisplayList({physicalAddress, buf, sizeInDWords * 4});
 		}
 		drawPassCtx.PushCurrentCommandQueuePos(buf, buf, buf + sizeInDWords);
 	}

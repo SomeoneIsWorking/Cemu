@@ -175,6 +175,13 @@ bool LatteBufferCache_LoadRemappedUniforms(struct LatteDecompilerShader* shader,
 // addresses begin. Shared so a reader of those addresses cannot drift from the loader
 // that consumes them.
 uint32 LatteBufferCache_getUniformBlockRegisterOffset(LatteConst::ShaderType shaderType);
+// Each uniform block this shader sources, written into `pairs` as (block id, guest
+// physical address) and capped at `maxPairs`. Returns how many pairs were written. The
+// address is the engine's own storage for the object being drawn, and the only identity
+// for it that survives a frame.
+uint32 LatteBufferCache_collectUniformBlockSources(struct LatteDecompilerShader* shader,
+												   uint32* pairs, uint32 maxPairs,
+												   uint32* droppedOverCap);
 
 void LatteRenderTarget_updateViewport();
 

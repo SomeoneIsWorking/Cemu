@@ -38,7 +38,6 @@ class LatteUniformCapture
 
 	bool OpenFile();
 	void Finish(const char* reason);
-	uint32 CollectBufferSources(const LatteDecompilerShader* shader, uint32* sources);
 
 	static constexpr uint32 kDefaultFrames = 4;
 	static constexpr uint32 kMaxDrawsPerFrame = 8192;

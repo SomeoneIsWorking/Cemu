@@ -78,7 +78,10 @@ void LatteUniformCapture::RecordDraw(uint32 shaderStageIndex, const LatteDecompi
 		return;
 	}
 	uint32 sources[kMaxBufferGroups * 2];
-	const uint32 sourceCount = CollectBufferSources(shader, sources);
+	uint32 dropped = 0;
+	const uint32 sourceCount = LatteBufferCache_collectUniformBlockSources(
+		const_cast<LatteDecompilerShader*>(shader), sources, kMaxBufferGroups, &dropped);
+	m_bufferGroupsDropped += dropped;
 	// One self-describing record: the layout fields are what let a reader find
 	// the register and remapped blocks inside the payload without guessing,
 	// and the source addresses are what give a draw an identity across frames.
@@ -104,27 +107,6 @@ void LatteUniformCapture::RecordDraw(uint32 shaderStageIndex, const LatteDecompi
 	{
 		m_drawsWithoutSources++;
 	}
-}
-
-uint32 LatteUniformCapture::CollectBufferSources(const LatteDecompilerShader* shader,
-												 uint32* sources)
-{
-	const uint32 registerOffset =
-		LatteBufferCache_getUniformBlockRegisterOffset(shader->shaderType);
-	uint32 count = 0;
-	for (const auto& group : shader->list_remappedUniformEntries_bufferGroups)
-	{
-		if (count >= kMaxBufferGroups)
-		{
-			m_bufferGroupsDropped++;
-			break;
-		}
-		sources[count * 2 + 0] = group.bufferId;
-		sources[count * 2 + 1] =
-			LatteGPUState.contextRegister[registerOffset + group.kcacheBankIdOffset / 4];
-		count++;
-	}
-	return count;
 }
 
 void LatteUniformCapture::NotifyFrameEnd()

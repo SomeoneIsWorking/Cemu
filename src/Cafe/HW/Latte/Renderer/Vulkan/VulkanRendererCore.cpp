@@ -12,6 +12,7 @@
 #include "imgui/imgui_impl_vulkan.h"
 #include "Cafe/GameProfile/GameProfile.h"
 #include "util/helpers/helpers.h"
+#include "Cafe/HW/Latte/Core/LatteFrameHooks.h"
 #include "Cafe/HW/Latte/Core/LatteUniformCapture.h"
 
 extern bool hasValidFramebufferAttached;
@@ -451,6 +452,16 @@ void VulkanRenderer::uniformData_updateUniformVars(uint32 shaderStageIndex, Latt
 	{
 		LatteUniformCapture::GetInstance().RecordDraw(shaderStageIndex, shader, uniformBuf, shader->uniform.uniformRangeSize);
 	}
+	if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
+	{
+		uint32 blockSources[LatteFrameHooks::kMaxUniformBlockSources * 2];
+		const uint32 blockSourceCount = LatteBufferCache_collectUniformBlockSources(
+			shader, blockSources, LatteFrameHooks::kMaxUniformBlockSources, nullptr);
+		// Called last, so a substitution is the value that gets uploaded.
+		observer->OnUniformAssembly({shader->baseHash, shader->auxHash, shaderStageIndex,
+									 uniformBuf, shader->uniform.uniformRangeSize, blockSources,
+									 blockSourceCount});
+	}
 	dynamicOffsetInfo.uniformVarBufferOffset[shaderStageIndex] = uniformData_uploadUniformDataBufferGetOffset({(uint8*)uniformBuf, shader->uniform.uniformRangeSize});
 }
 
@@ -501,6 +512,16 @@ void VulkanRenderer::uniformData_updateUniformVarsIncremental(uint32 shaderStage
 		if (LatteUniformCapture::GetInstance().IsRecording())
 	{
 		LatteUniformCapture::GetInstance().RecordDraw(shaderStageIndex, shader, uniformBuf, shader->uniform.uniformRangeSize);
+	}
+	if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
+	{
+		uint32 blockSources[LatteFrameHooks::kMaxUniformBlockSources * 2];
+		const uint32 blockSourceCount = LatteBufferCache_collectUniformBlockSources(
+			shader, blockSources, LatteFrameHooks::kMaxUniformBlockSources, nullptr);
+		// Called last, so a substitution is the value that gets uploaded.
+		observer->OnUniformAssembly({shader->baseHash, shader->auxHash, shaderStageIndex,
+									 uniformBuf, shader->uniform.uniformRangeSize, blockSources,
+									 blockSourceCount});
 	}
 	dynamicOffsetInfo.uniformVarBufferOffset[shaderStageIndex] = uniformData_uploadUniformDataBufferGetOffset({(uint8*)uniformBuf, shader->uniform.uniformRangeSize});
 		stageUniformModifiedMask |= (1 << shaderStageIndex);

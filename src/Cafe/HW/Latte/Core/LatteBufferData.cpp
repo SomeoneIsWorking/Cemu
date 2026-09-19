@@ -85,6 +85,27 @@ uint32 LatteBufferCache_getUniformBlockRegisterOffset(LatteConst::ShaderType sha
 	}
 }
 
+uint32 LatteBufferCache_collectUniformBlockSources(LatteDecompilerShader* shader, uint32* pairs,
+												   uint32 maxPairs, uint32* droppedOverCap)
+{
+	const uint32 registerOffset = LatteBufferCache_getUniformBlockRegisterOffset(shader->shaderType);
+	uint32 count = 0;
+	for (const auto& group : shader->list_remappedUniformEntries_bufferGroups)
+	{
+		if (count >= maxPairs)
+		{
+			if (droppedOverCap != nullptr)
+				(*droppedOverCap)++;
+			break;
+		}
+		pairs[count * 2 + 0] = group.bufferId;
+		pairs[count * 2 + 1] =
+			LatteGPUState.contextRegister[registerOffset + group.kcacheBankIdOffset / 4];
+		count++;
+	}
+	return count;
+}
+
 bool LatteBufferCache_LoadRemappedUniforms(LatteDecompilerShader* shader, float* uniformData, bool aluConstDirty, uint32 uniformBufferDirtyMask)
 {
 	bool hasChange = false;
