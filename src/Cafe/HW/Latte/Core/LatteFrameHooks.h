@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 
 // The points at which first-party code observes and substitutes, and nothing
 // else.
@@ -59,6 +60,26 @@ namespace LatteFrameHooks
 	// Registered once at startup by the first-party library, and never replaced
 	// while a frame is in flight. Passing nullptr restores upstream behaviour.
 	void SetObserver(Observer* observer);
+
+	// One presented frame, as the user would see it: the scan buffer after the
+	// title has drawn it and before any overlay. The bytes belong to the
+	// caller of the capture and do not outlive the callback.
+	struct FrameImage
+	{
+		const uint8_t* rgb;
+		uint32_t byteCount;
+		int width;
+		int height;
+		bool mainWindow;
+	};
+
+	using CaptureCallback = std::function<void(const FrameImage&)>;
+
+	// Capture the next frame the title presents. One-shot: a capture that
+	// repeated every frame would make a replayed image impossible to tell
+	// from the one after it. False means no capture was armed, which is a
+	// refusal rather than a capture that silently never arrives.
+	bool RequestFrameCapture(CaptureCallback callback);
 
 	// Feed a recorded buffer back to the command processor as if the guest had
 	// referenced it. The caller owns the memory and it must outlive the call.
