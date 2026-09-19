@@ -146,10 +146,6 @@ add_library(CemuCafe
   HW/Latte/Core/LatteFrameHooks.cpp
   HW/Latte/Core/LatteFrameHooks.h
   HW/Latte/Core/LatteCaptureWindow.h
-  HW/Latte/Core/LatteDisplayListCapture.cpp
-  HW/Latte/Core/LatteDisplayListCapture.h
-  HW/Latte/Core/LatteUniformCapture.cpp
-  HW/Latte/Core/LatteUniformCapture.h
   HW/Latte/Core/LatteTiming.cpp
   HW/Latte/Core/LatteTiming.h
   HW/Latte/ISA/LatteInstructions.h

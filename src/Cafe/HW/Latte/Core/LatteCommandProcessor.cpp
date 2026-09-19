@@ -3,7 +3,6 @@
 #include "Cafe/OS/libs/gx2/GX2_Event.h" // for notification callbacks
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
-#include "Cafe/HW/Latte/Core/LatteDisplayListCapture.h"
 #include "Cafe/HW/Latte/Core/LatteFrameHooks.h"
 #include "Cafe/HW/Latte/Core/LatteShader.h"
 #include "Cafe/HW/Latte/Core/LatteAsyncCommands.h"
@@ -293,10 +292,6 @@ void LatteCP_itIndirectBuffer(LatteCMDPtr cmd, uint32 nWords, DrawPassContext& d
 	if (sizeInDWords > 0)
 	{
 		uint32be* buf = MEMPTR<uint32be>(physicalAddress).GetPtr();
-		if (LatteDisplayListCapture::GetInstance().IsRecording())
-		{
-			LatteDisplayListCapture::GetInstance().RecordList(physicalAddress, sizeInDWords);
-		}
 		if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
 		{
 			observer->OnDisplayList({physicalAddress, buf, sizeInDWords * 4});
