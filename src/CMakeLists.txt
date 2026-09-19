@@ -229,3 +229,23 @@ endif()
 if (BSD)
 	target_link_libraries(CemuBin PRIVATE execinfo SPIRV-Tools SPIRV-Tools-opt)
 endif()
+
+# The first-party runtime, when one is supplied.
+#
+# Absent WIIUPORT_SOURCE_DIR nothing here happens and this build is upstream's:
+# every frame hook stays a no-op. The dependency points one way only, from this
+# executable to that library; nothing in Cemu includes a first-party header.
+if(WIIUPORT_SOURCE_DIR)
+	if(NOT EXISTS "${WIIUPORT_SOURCE_DIR}/CMakeLists.txt")
+		message(FATAL_ERROR
+			"WIIUPORT_SOURCE_DIR is set to ${WIIUPORT_SOURCE_DIR}, which has no "
+			"CMakeLists.txt. Point it at the first-party src/wiiuport directory, "
+			"or leave it unset to build upstream behaviour.")
+	endif()
+	add_subdirectory("${WIIUPORT_SOURCE_DIR}" wiiuport)
+	# Only CemuBin calls across: it installs the hooks from main, and the
+	# library answers every question about itself over its own control channel
+	# rather than through this executable.
+	target_link_libraries(CemuBin PRIVATE wiiuport::wiiuport)
+	target_compile_definitions(CemuBin PRIVATE HAS_WIIUPORT=1)
+endif()

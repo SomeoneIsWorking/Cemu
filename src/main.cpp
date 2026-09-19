@@ -1,3 +1,4 @@
+#include "Cafe/HW/Latte/Core/LatteFrameHooks.h"
 #include "WindowSystem.h"
 #include "util/crypto/aes128.h"
 #include "Cafe/OS/RPL/rpl.h"
@@ -215,6 +216,16 @@ void HandlePostUpdate()
 
 void ToolShaderCacheMerger();
 
+// Installed before any window or title exists, so the first frame the guest
+// submits is already observed.
+static void InstallFirstPartyHooks()
+{
+#ifdef HAS_WIIUPORT
+	wiiuport_install_hooks();
+	cemuLog_log(LogType::Force, "first-party runtime hooks installed");
+#endif
+}
+
 #if BOOST_OS_WINDOWS
 
 // entrypoint for release builds
@@ -225,6 +236,7 @@ int wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int
 #ifdef HAS_SDL
 	SDL_SetMainReady();
 #endif
+	InstallFirstPartyHooks();
 	auto parse_rc = LaunchSettings::HandleCommandline(lpCmdLine);
 	if (parse_rc.has_value())
 		return *parse_rc;
@@ -240,6 +252,7 @@ int main(int argc, char* argv[])
 #ifdef HAS_SDL
 	SDL_SetMainReady();
 #endif
+	InstallFirstPartyHooks();
 	auto parse_rc = LaunchSettings::HandleCommandline(argc, argv);
 	if (parse_rc.has_value())
 		return *parse_rc;
@@ -260,6 +273,7 @@ int main(int argc, char *argv[])
 #if BOOST_OS_LINUX || BOOST_OS_BSD
     XInitThreads();
 #endif
+	InstallFirstPartyHooks();
 	auto parse_rc = LaunchSettings::HandleCommandline(argc, argv);
   if (parse_rc.has_value())
 		return *parse_rc;

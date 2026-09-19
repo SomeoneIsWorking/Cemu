@@ -65,3 +65,11 @@ namespace LatteFrameHooks
 	Observer* GetObserver();
 
 } // namespace LatteFrameHooks
+
+// Provided by the first-party library, and only when one is linked. Declared
+// here because this header is already the boundary between the two, and called
+// once from startup: a static initialiser inside a static library is dropped
+// by the linker when nothing references its object file, which would leave a
+// build that records nothing and says so nowhere.
+extern "C" void wiiuport_install_hooks(void);
+
