@@ -62,6 +62,12 @@ namespace LatteFrameHooks
 		uint32_t sliceIndex;
 		uint32_t format;
 		uint32_t renderTarget;
+		// Which screen this copy feeds, decoded from renderTarget's bits here
+		// because they belong to Latte. A title copies twice per frame -- the
+		// TV and the GamePad -- so a runtime that keeps only the last one it
+		// saw presents the GamePad's scan buffer into the main window.
+		bool targetsTv;
+		bool targetsDrc;
 	};
 
 	class Observer
