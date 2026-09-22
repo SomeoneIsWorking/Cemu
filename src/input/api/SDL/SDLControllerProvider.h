@@ -24,20 +24,27 @@ public:
 
 	MotionSample motion_sample(SDL_JoystickID diid);
 
-	// exposed for manual event handling on macOS
-#if BOOST_OS_MACOS
+	// Only one thread may drain SDL's global event queue. A front end with an
+	// SDL window of its own owns that loop, and says so before any provider is
+	// created; this provider then handles the controller events the host hands
+	// it instead of running its own thread. macOS always requires the main
+	// thread to pump, so it is set there regardless.
+	static void SetHostOwnsEventLoop(bool hostOwns);
+	static bool HostOwnsEventLoop();
+
+	// The host's side of that arrangement.
 	static void InitSDL();
 	static void ShutdownSDL();
+	// Drains the queue itself, for a host with no window of its own.
 	static void PumpSDLEvents();
-#endif
+	// Hands over one event, for a host that drains the queue for its window.
+	static void HandleHostEvent(union SDL_Event& event);
 
 private:
 	void event_thread();
 	static void HandleSDLEvent(union SDL_Event& event);
-#if !BOOST_OS_MACOS
-	static void InitSDL();
-	static void ShutdownSDL();
-#endif
+
+	inline static std::atomic_bool s_hostOwnsEventLoop{BOOST_OS_MACOS != 0};
 
 	// there is only one SDL instance, for this reason all of our state can be static
 	inline static std::atomic_int s_initCount{0};
