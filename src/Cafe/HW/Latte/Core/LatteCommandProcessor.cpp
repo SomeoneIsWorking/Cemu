@@ -246,6 +246,8 @@ bool LatteFrameHooks::SubmitDisplayList(const void* data, uint32_t sizeInBytes)
 	{
 		return false;
 	}
+	// Everything that reaches an observer from here is the runtime's own.
+	LatteFrameHooks::RuntimeSubmission submission;
 	LatteCMDPtr buffer = (LatteCMDPtr)data;
 	DrawPassContext replayCtx;
 	replayCtx.PushCurrentCommandQueuePos(buffer, buffer, buffer + (sizeInBytes / 4));
@@ -294,7 +296,8 @@ void LatteCP_itIndirectBuffer(LatteCMDPtr cmd, uint32 nWords, DrawPassContext& d
 		uint32be* buf = MEMPTR<uint32be>(physicalAddress).GetPtr();
 		if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
 		{
-			observer->OnDisplayList({physicalAddress, buf, sizeInDWords * 4});
+			observer->OnDisplayList({physicalAddress, buf, sizeInDWords * 4,
+									 LatteFrameHooks::InRuntimeSubmission()});
 		}
 		drawPassCtx.PushCurrentCommandQueuePos(buf, buf, buf + sizeInDWords);
 	}

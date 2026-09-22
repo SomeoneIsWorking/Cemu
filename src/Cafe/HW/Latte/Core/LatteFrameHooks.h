@@ -29,6 +29,10 @@ namespace LatteFrameHooks
 		uint32_t physicalAddress;
 		const void* data;
 		uint32_t sizeInBytes;
+		// True when this came back out of a buffer the runtime submitted
+		// rather than one the guest referenced. A recorder that cannot tell
+		// the two apart records its own replay as part of the next frame.
+		bool fromRuntime;
 	};
 
 	// One shader's assembled uniform buffer, after both Latte uniform modes have
@@ -45,6 +49,10 @@ namespace LatteFrameHooks
 		// only identity for the object being drawn that survives a tick.
 		const uint32_t* blockAddresses;
 		uint32_t blockAddressCount;
+		// As in DisplayList: whose draw this is. It is also the moment a
+		// substitution belongs to -- a blend edits the runtime's own replay
+		// and never the frame the guest is drawing.
+		bool fromRuntime;
 	};
 
 	// The nine arguments of the packet that copies a colour buffer to a scan
@@ -118,6 +126,22 @@ namespace LatteFrameHooks
 	// frame end for a frame the guest never finished -- and re-enter whatever
 	// the observer does there, from inside itself.
 	bool InRuntimePresent();
+
+	// True while a buffer the runtime submitted is being processed. The draws
+	// and uniform buffers that come back during it are the runtime's own work.
+	bool InRuntimeSubmission();
+
+	// Marks the buffer being processed as the runtime's own, for as long as it
+	// is in scope. Counted rather than set, so a nested submission does not
+	// clear the mark when the inner one finishes.
+	class RuntimeSubmission
+	{
+	  public:
+		RuntimeSubmission();
+		~RuntimeSubmission();
+		RuntimeSubmission(const RuntimeSubmission&) = delete;
+		RuntimeSubmission& operator=(const RuntimeSubmission&) = delete;
+	};
 
 	// Feed a recorded buffer back to the command processor as if the guest had
 	// referenced it. The caller owns the memory and it must outlive the call.

@@ -455,7 +455,7 @@ void VulkanRenderer::uniformData_updateUniformVars(uint32 shaderStageIndex, Latt
 		// Called last, so a substitution is the value that gets uploaded.
 		observer->OnUniformAssembly({shader->baseHash, shader->auxHash, shaderStageIndex,
 									 uniformBuf, shader->uniform.uniformRangeSize, blockSources,
-									 blockSourceCount});
+									 blockSourceCount, LatteFrameHooks::InRuntimeSubmission()});
 	}
 	dynamicOffsetInfo.uniformVarBufferOffset[shaderStageIndex] = uniformData_uploadUniformDataBufferGetOffset({(uint8*)uniformBuf, shader->uniform.uniformRangeSize});
 }
@@ -512,7 +512,7 @@ void VulkanRenderer::uniformData_updateUniformVarsIncremental(uint32 shaderStage
 			// Called last, so a substitution is the value that gets uploaded.
 			observer->OnUniformAssembly({shader->baseHash, shader->auxHash, shaderStageIndex,
 										 uniformBuf, shader->uniform.uniformRangeSize, blockSources,
-										 blockSourceCount});
+										 blockSourceCount, LatteFrameHooks::InRuntimeSubmission()});
 		}
 		dynamicOffsetInfo.uniformVarBufferOffset[shaderStageIndex] = uniformData_uploadUniformDataBufferGetOffset({(uint8*)uniformBuf, shader->uniform.uniformRangeSize});
 		stageUniformModifiedMask |= (1 << shaderStageIndex);

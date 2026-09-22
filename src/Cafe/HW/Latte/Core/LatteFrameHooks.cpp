@@ -34,6 +34,27 @@ namespace LatteFrameHooks
 		return s_inRuntimePresent;
 	}
 
+	namespace
+	{
+		// Owned by the Latte thread, which is the only thread that submits.
+		int s_runtimeSubmissionDepth = 0;
+	} // namespace
+
+	bool InRuntimeSubmission()
+	{
+		return s_runtimeSubmissionDepth > 0;
+	}
+
+	RuntimeSubmission::RuntimeSubmission()
+	{
+		++s_runtimeSubmissionDepth;
+	}
+
+	RuntimeSubmission::~RuntimeSubmission()
+	{
+		--s_runtimeSubmissionDepth;
+	}
+
 	bool SubmitPresent(const PresentArguments& present)
 	{
 		// Re-entering through our own swap would publish a frame boundary the
