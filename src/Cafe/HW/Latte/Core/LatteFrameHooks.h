@@ -136,6 +136,11 @@ namespace LatteFrameHooks
 		virtual void OnFrameComplete() = 0;
 		// The guest's swap has been presented.
 		virtual void OnFrameEnd() = 0;
+		// Every frame handed to the display, the guest's or the runtime's, as
+		// the renderer returns from presenting it. The interval between two is
+		// the frame time a player sees, which the guest's swaps alone stop
+		// describing once the runtime shows frames of its own.
+		virtual void OnDisplayed(bool fromRuntime) = 0;
 		// Every draw the title issues, and whether it came out of a command
 		// buffer the recorder was shown or straight from the ring. A recording
 		// made of command buffers can only ever replay the first kind, so the

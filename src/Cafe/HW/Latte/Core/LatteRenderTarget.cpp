@@ -692,6 +692,10 @@ void LatteRenderTarget_itHLESwapScanBuffer()
 	LattePerformanceMonitor_frameEnd();
 	LatteGPUState.frameCounter++;
 	g_renderer->SwapBuffers(true, true);
+	if (LatteFrameHooks::Observer* displayObserver = LatteFrameHooks::GetObserver(); displayObserver != nullptr)
+	{
+		displayObserver->OnDisplayed(LatteFrameHooks::InRuntimePresent());
+	}
 	if (frameObserver != nullptr)
 	{
 		frameObserver->OnFrameEnd();
