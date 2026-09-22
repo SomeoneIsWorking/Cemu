@@ -214,6 +214,7 @@ endif()
 
 target_link_libraries(CemuBin PRIVATE
 	CemuAudio
+	CemuBoot
 	CemuCafe
 	CemuCommon
 	CemuComponents
