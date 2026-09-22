@@ -51,7 +51,9 @@ namespace LatteFrameHooks
 		float* data;
 		uint32_t sizeInBytes;
 		// Guest addresses of the uniform blocks this draw sourced, which is the
-		// only identity for the object being drawn that survives a tick.
+		// only identity for the object being drawn that survives a tick. Laid
+		// out as (bufferId, physicalAddress) pairs: blockAddressCount counts
+		// pairs, so the array holds twice that many words.
 		const uint32_t* blockAddresses;
 		uint32_t blockAddressCount;
 		// As in DisplayList: whose draw this is. It is also the moment a
