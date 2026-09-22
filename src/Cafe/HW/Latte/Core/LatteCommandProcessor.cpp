@@ -80,6 +80,7 @@ public:
 		{
 			g_renderer->draw_execute(baseVertex, baseInstance, numInstances, count, MPTR_NULL, Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE::AUTO, m_drawcallContext);
 		}
+		LatteFrameHooks::NoteRuntimeDraw();
 		performanceMonitor.cycle[performanceMonitor.cycleIndex].drawCallCounter++;
 		if (!m_drawcallContext.isFirst)
 			performanceMonitor.cycle[performanceMonitor.cycleIndex].fastDrawCallCounter++;
@@ -276,6 +277,11 @@ void LatteCP_itIndirectBufferDepr(LatteCMDPtr cmd, uint32 nWords)
 	{
 		DrawPassContext drawPassCtx;
 		uint32be* buf = MEMPTR<uint32be>(physicalAddress).GetPtr();
+		if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
+		{
+			observer->OnDisplayList({physicalAddress, buf, sizeInU32s * 4,
+									 LatteFrameHooks::InRuntimeSubmission(), true});
+		}
 		drawPassCtx.PushCurrentCommandQueuePos(buf, buf, buf + sizeInU32s);
 
 		LatteCP_processCommandBuffer(drawPassCtx);
@@ -297,7 +303,7 @@ void LatteCP_itIndirectBuffer(LatteCMDPtr cmd, uint32 nWords, DrawPassContext& d
 		if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
 		{
 			observer->OnDisplayList({physicalAddress, buf, sizeInDWords * 4,
-									 LatteFrameHooks::InRuntimeSubmission()});
+									 LatteFrameHooks::InRuntimeSubmission(), false});
 		}
 		drawPassCtx.PushCurrentCommandQueuePos(buf, buf, buf + sizeInDWords);
 	}
@@ -1090,6 +1096,7 @@ void LatteCP_processCommandBuffer_continuousDrawPass(DrawPassContext& drawPassCt
 				uint32 nWords = ((itHeader >> 16) & 0x3FFF) + 1;
 				LatteCMDPtr cmdData = cmd;
 				cmd += nWords;
+				LatteFrameHooks::NoteRuntimePacket();
 				switch (itCode)
 				{
 				case IT_SET_RESOURCE: // attribute buffers, uniform buffers or texture units
@@ -1242,6 +1249,7 @@ void LatteCP_processCommandBuffer(DrawPassContext& drawPassCtx)
 				uint32 nWords = ((itHeader >> 16) & 0x3FFF) + 1;
 				LatteCMDPtr cmdData = cmd;
 				cmd += nWords;
+				LatteFrameHooks::NoteRuntimePacket();
 				switch (itCode)
 				{
 				case IT_SET_CONTEXT_REG:

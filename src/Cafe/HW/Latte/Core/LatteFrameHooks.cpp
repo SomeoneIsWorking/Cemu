@@ -38,6 +38,7 @@ namespace LatteFrameHooks
 	{
 		// Owned by the Latte thread, which is the only thread that submits.
 		int s_runtimeSubmissionDepth = 0;
+		SubmissionSummary s_summary{};
 	} // namespace
 
 	bool InRuntimeSubmission()
@@ -47,12 +48,39 @@ namespace LatteFrameHooks
 
 	RuntimeSubmission::RuntimeSubmission()
 	{
+		if (s_runtimeSubmissionDepth == 0)
+		{
+			s_summary = SubmissionSummary{};
+		}
 		++s_runtimeSubmissionDepth;
 	}
 
 	RuntimeSubmission::~RuntimeSubmission()
 	{
 		--s_runtimeSubmissionDepth;
+		// Only the outermost one reports: a nested buffer is part of the same
+		// submission and counting it twice would inflate what reached the
+		// renderer.
+		if (s_runtimeSubmissionDepth == 0 && s_observer != nullptr)
+		{
+			s_observer->OnRuntimeSubmission(s_summary);
+		}
+	}
+
+	void NoteRuntimePacket()
+	{
+		if (s_runtimeSubmissionDepth > 0)
+		{
+			++s_summary.packetsProcessed;
+		}
+	}
+
+	void NoteRuntimeDraw()
+	{
+		if (s_runtimeSubmissionDepth > 0)
+		{
+			++s_summary.drawsIssued;
+		}
 	}
 
 	bool SubmitPresent(const PresentArguments& present)

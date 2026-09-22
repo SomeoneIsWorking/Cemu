@@ -33,6 +33,11 @@ namespace LatteFrameHooks
 		// rather than one the guest referenced. A recorder that cannot tell
 		// the two apart records its own replay as part of the next frame.
 		bool fromRuntime;
+		// True for a buffer the title's command queue submitted, false for one
+		// referenced from inside another. Only the first kind carries a frame's
+		// draws; the nested ones are walked as part of it, so a recorder that
+		// keeps both would replay their contents twice.
+		bool topLevel;
 	};
 
 	// One shader's assembled uniform buffer, after both Latte uniform modes have
@@ -78,6 +83,16 @@ namespace LatteFrameHooks
 		bool targetsDrc;
 	};
 
+	// What one buffer the runtime submitted actually reached. A replay that
+	// submits and draws nothing leaves the colour buffer exactly as it was,
+	// which is also what a perfect replay looks like; these two numbers are
+	// what tells those apart.
+	struct SubmissionSummary
+	{
+		uint32_t packetsProcessed;
+		uint32_t drawsIssued;
+	};
+
 	class Observer
 	{
 	  public:
@@ -87,6 +102,8 @@ namespace LatteFrameHooks
 		virtual void OnUniformAssembly(const UniformAssembly& assembly) = 0;
 		virtual void OnPresent(const PresentArguments& present) = 0;
 		virtual void OnFrameEnd() = 0;
+		// One per outermost runtime submission, after it has been processed.
+		virtual void OnRuntimeSubmission(const SubmissionSummary& summary) = 0;
 	};
 
 	// Registered once at startup by the first-party library, and never replaced
@@ -142,6 +159,11 @@ namespace LatteFrameHooks
 		RuntimeSubmission(const RuntimeSubmission&) = delete;
 		RuntimeSubmission& operator=(const RuntimeSubmission&) = delete;
 	};
+
+	// Counted into the submission in progress, and ignored outside one. The
+	// command processor calls these; nothing else should.
+	void NoteRuntimePacket();
+	void NoteRuntimeDraw();
 
 	// Feed a recorded buffer back to the command processor as if the guest had
 	// referenced it. The caller owns the memory and it must outlive the call.
