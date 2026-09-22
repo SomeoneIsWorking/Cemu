@@ -13,7 +13,21 @@
     "rapidjson",
     {
       "name": "sdl3",
-      "default-features": false
+      "default-features": false,
+      "features": [
+        {
+          "name": "x11",
+          "platform": "linux"
+        },
+        {
+          "name": "wayland",
+          "platform": "linux"
+        },
+        {
+          "name": "vulkan",
+          "platform": "linux"
+        }
+      ]
     },
     "boost-tokenizer",
     "boost-container",

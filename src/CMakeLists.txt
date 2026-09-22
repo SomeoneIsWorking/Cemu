@@ -65,6 +65,11 @@ add_subdirectory(util)
 add_subdirectory(imgui)
 add_subdirectory(resource)
 
+# The wxWidgets front end is the only in-tree implementation of the
+# WindowSystem interface, so without it this executable has nothing to open a
+# window with. A build that selects another front end provides its own
+# executable rather than linking an unimplemented one.
+if (ENABLE_WXWIDGETS)
 add_executable(CemuBin
 	main.cpp
 	mainLLE.cpp
@@ -231,10 +236,12 @@ if (BSD)
 	target_link_libraries(CemuBin PRIVATE execinfo SPIRV-Tools SPIRV-Tools-opt)
 endif()
 
+endif() # ENABLE_WXWIDGETS
+
 # The first-party runtime, when one is supplied.
-#
+
 # Absent WIIUPORT_SOURCE_DIR nothing here happens and this build is upstream's:
-# every frame hook stays a no-op. The dependency points one way only, from this
+# every frame hook stays a no-op. The dependency points one way only, from an
 # executable to that library; nothing in Cemu includes a first-party header.
 if(WIIUPORT_SOURCE_DIR)
 	if(NOT EXISTS "${WIIUPORT_SOURCE_DIR}/CMakeLists.txt")
@@ -244,9 +251,11 @@ if(WIIUPORT_SOURCE_DIR)
 			"or leave it unset to build upstream behaviour.")
 	endif()
 	add_subdirectory("${WIIUPORT_SOURCE_DIR}" wiiuport)
-	# Only CemuBin calls across: it installs the hooks from main, and the
-	# library answers every question about itself over its own control channel
-	# rather than through this executable.
-	target_link_libraries(CemuBin PRIVATE wiiuport::wiiuport)
-	target_compile_definitions(CemuBin PRIVATE HAS_WIIUPORT=1)
+	if (ENABLE_WXWIDGETS)
+		# Only the executable calls across: it installs the hooks from main,
+		# and the library answers every question about itself over its own
+		# control channel rather than through this executable.
+		target_link_libraries(CemuBin PRIVATE wiiuport::wiiuport)
+		target_compile_definitions(CemuBin PRIVATE HAS_WIIUPORT=1)
+	endif()
 endif()

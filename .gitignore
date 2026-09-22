@@ -21,6 +21,7 @@ cmake-build-*/
 out/
 .cache/
 bin/Cemu_*
+bin/wiiuport
 bin/Cemu_*.exe
 
 # Cemu bin files

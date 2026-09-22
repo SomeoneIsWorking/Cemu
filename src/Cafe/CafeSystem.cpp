@@ -74,6 +74,11 @@
 #include <sys/sysctl.h>
 #endif
 
+// Set by the Latte thread once the GPU is up, waited on by title launch.
+// Both users are in this library; defining it in an entry point made every
+// front end responsible for a flag it has nothing to do with.
+std::atomic_bool g_isGPUInitFinished = false;
+
 std::string _pathToExecutable;
 std::string _pathToBaseExecutable;
 
