@@ -679,19 +679,22 @@ void LatteRenderTarget_trackUpdates()
 
 void LatteRenderTarget_itHLESwapScanBuffer()
 {
+	// A present the runtime made is not a frame the guest finished.
+	LatteFrameHooks::Observer* frameObserver =
+		LatteFrameHooks::InRuntimePresent() ? nullptr : LatteFrameHooks::GetObserver();
+	if (frameObserver != nullptr)
+	{
+		frameObserver->OnFrameComplete();
+	}
 	performanceMonitor.cycle[performanceMonitor.cycleIndex].frameCounter++;
 	if(LatteGPUState.frameCounter > 5)
 		performanceMonitor.gpuTime_frameTime.endMeasuring();
 	LattePerformanceMonitor_frameEnd();
 	LatteGPUState.frameCounter++;
 	g_renderer->SwapBuffers(true, true);
-	if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
+	if (frameObserver != nullptr)
 	{
-		// A present the runtime made is not a frame the guest finished.
-		if (!LatteFrameHooks::InRuntimePresent())
-		{
-			observer->OnFrameEnd();
-		}
+		frameObserver->OnFrameEnd();
 	}
 
 	catchOpenGLError();

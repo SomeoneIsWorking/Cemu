@@ -2,6 +2,7 @@
 #include "Cafe/HW/Latte/Core/LattePerformanceMonitor.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 #include "Cafe/HW/Latte/Core/LatteTexture.h"
+#include "Cafe/HW/Latte/Core/LatteFrameHooks.h"
 
 #define LOG_READBACK_TIME
 
@@ -75,6 +76,9 @@ void LatteTextureReadback_NotifyTextureDeletion(LatteTexture* texture)
 
 void LatteTextureReadback_Initate(LatteTextureView* textureView)
 {
+	// A replay's render targets hold a frame the guest did not draw.
+	if (LatteFrameHooks::WithholdReadbackFromRuntimeSubmission())
+		return;
 	// currently we don't support readback for resized textures
 	if (textureView->baseTexture->overwriteInfo.hasResolutionOverwrite)
 	{

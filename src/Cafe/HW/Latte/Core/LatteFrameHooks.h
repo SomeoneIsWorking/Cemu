@@ -83,14 +83,40 @@ namespace LatteFrameHooks
 		bool targetsDrc;
 	};
 
+	// What a runtime submission was not allowed to do. A replay re-issues a
+	// frame the guest has already finished: its fences have been waited on,
+	// its semaphores consumed, its timestamps read. Executing those packets a
+	// second time would block the command processor on a semaphore nobody
+	// will signal again, or tell the guest a fence retired that it never
+	// submitted. Every class is withheld and counted, never silently dropped,
+	// so a replay that needed one of them is visible as a number.
+	enum class WithheldEffect : uint32_t
+	{
+		// Scan-buffer copies and swaps. The runtime presents through
+		// SubmitPresent, which is the one place these run on its behalf.
+		Presentation,
+		// Waits on guest memory and semaphore signals/waits.
+		Synchronisation,
+		// Fence values, timestamps, and stream-out fill sizes written to guest
+		// memory.
+		GuestMemoryWrite,
+		// Occlusion queries, whose results land in guest memory.
+		OcclusionQuery,
+		// Render targets mirrored back to guest memory.
+		TextureReadback,
+		Count
+	};
+	inline constexpr uint32_t kWithheldEffectCount = static_cast<uint32_t>(WithheldEffect::Count);
+
 	// What one buffer the runtime submitted actually reached. A replay that
 	// submits and draws nothing leaves the colour buffer exactly as it was,
-	// which is also what a perfect replay looks like; these two numbers are
-	// what tells those apart.
+	// which is also what a perfect replay looks like; these counts tell
+	// the two apart.
 	struct SubmissionSummary
 	{
 		uint32_t packetsProcessed;
 		uint32_t drawsIssued;
+		uint32_t withheld[kWithheldEffectCount]{};
 	};
 
 	class Observer
@@ -101,6 +127,12 @@ namespace LatteFrameHooks
 		virtual void OnDisplayList(const DisplayList& list) = 0;
 		virtual void OnUniformAssembly(const UniformAssembly& assembly) = 0;
 		virtual void OnPresent(const PresentArguments& present) = 0;
+		// The guest's frame is finished -- every draw issued, its scan buffer
+		// copied -- and its swap has not happened yet. This is the one moment
+		// a frame of the runtime's own can be shown before the guest's, which
+		// is where an in-between frame belongs.
+		virtual void OnFrameComplete() = 0;
+		// The guest's swap has been presented.
 		virtual void OnFrameEnd() = 0;
 		// Every draw the title issues, and whether it came out of a command
 		// buffer the recorder was shown or straight from the ring. A recording
@@ -143,6 +175,11 @@ namespace LatteFrameHooks
 	// it observed. False means nothing was submitted.
 	bool SubmitPresent(const PresentArguments& present);
 
+	// Copy a colour buffer to the scan buffer without swapping, so the guest's
+	// own swap that follows presents it. Used to put the guest's frame back
+	// after the runtime has drawn and presented one of its own in front of it.
+	bool SubmitScanBufferCopy(const PresentArguments& present);
+
 	// True while SubmitPresent is running. The swap packet it submits reaches
 	// the same handler the guest's swap does, which would otherwise report a
 	// frame end for a frame the guest never finished -- and re-enter whatever
@@ -169,6 +206,15 @@ namespace LatteFrameHooks
 	// command processor calls these; nothing else should.
 	void NoteRuntimePacket();
 	void NoteRuntimeDraw();
+
+	// True when a packet with this opcode must not execute because the
+	// runtime submitted it, and counts it by class. Always false for the
+	// guest's own buffers, and for the runtime's own present.
+	bool WithholdFromRuntimeSubmission(uint32_t itCode);
+
+	// The same decision for a render-target readback, which is initiated by
+	// a draw rather than by a packet of its own.
+	bool WithholdReadbackFromRuntimeSubmission();
 
 	// True while a command buffer the guest submitted is being walked.
 	bool InCommandBuffer();

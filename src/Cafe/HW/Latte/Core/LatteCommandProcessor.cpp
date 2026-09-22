@@ -1033,7 +1033,11 @@ LatteCMDPtr LatteCP_itHLECopyColorBufferToScanBuffer(LatteCMDPtr cmd, uint32 nWo
 	uint32 colorBufferFormat = LatteReadCMD();
 	uint32 renderTarget = LatteReadCMD();
 
-	if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
+	// The runtime's own present re-sends arguments it observed; reporting it
+	// would count every in-between frame as a present the guest made.
+	LatteFrameHooks::Observer* observer =
+		LatteFrameHooks::InRuntimePresent() ? nullptr : LatteFrameHooks::GetObserver();
+	if (observer != nullptr)
 	{
 		LatteFrameHooks::PresentArguments present{colorBufferPtr,
 												  colorBufferWidth,
@@ -1258,6 +1262,10 @@ void LatteCP_processCommandBuffer(DrawPassContext& drawPassCtx)
 				LatteCMDPtr cmdData = cmd;
 				cmd += nWords;
 				LatteFrameHooks::NoteRuntimePacket();
+				if (LatteFrameHooks::WithholdFromRuntimeSubmission(itCode))
+				{
+					continue;
+				}
 				switch (itCode)
 				{
 				case IT_SET_CONTEXT_REG:

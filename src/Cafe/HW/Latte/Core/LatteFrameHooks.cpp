@@ -104,36 +104,116 @@ namespace LatteFrameHooks
 		}
 	}
 
-	bool SubmitPresent(const PresentArguments& present)
+	namespace
 	{
-		// Re-entering through our own swap would publish a frame boundary the
-		// guest never reached. Refusing a nested present is not a limitation
-		// to work around; there is no such thing as a present inside a present.
-		if (s_inRuntimePresent)
+		// Which class a packet's guest-visible effect belongs to, or Count
+		// when it has none and a replay may execute it.
+		WithheldEffect ClassifyGuestVisibleEffect(uint32_t itCode)
+		{
+			switch (itCode)
+			{
+			case IT_HLE_COPY_COLORBUFFER_TO_SCANBUFFER:
+			case IT_HLE_TRIGGER_SCANBUFFER_SWAP:
+			case IT_HLE_REQUEST_SWAP_BUFFERS:
+			case IT_HLE_WAIT_FOR_FLIP:
+				return WithheldEffect::Presentation;
+			case IT_WAIT_REG_MEM:
+			case IT_MEM_SEMAPHORE:
+				return WithheldEffect::Synchronisation;
+			case IT_MEM_WRITE:
+			case IT_EVENT_WRITE_EOP:
+			case IT_HLE_SAMPLE_TIMER:
+			case IT_HLE_BOTTOM_OF_PIPE_CB:
+			case IT_STRMOUT_BUFFER_UPDATE:
+				return WithheldEffect::GuestMemoryWrite;
+			case IT_HLE_BEGIN_OCCLUSION_QUERY:
+			case IT_HLE_END_OCCLUSION_QUERY:
+				return WithheldEffect::OcclusionQuery;
+			default:
+				return WithheldEffect::Count;
+			}
+		}
+
+		bool Withhold(WithheldEffect effect)
+		{
+			if (s_runtimeSubmissionDepth == 0)
+			{
+				return false;
+			}
+			++s_summary.withheld[static_cast<uint32_t>(effect)];
+			return true;
+		}
+	} // namespace
+
+	bool WithholdFromRuntimeSubmission(uint32_t itCode)
+	{
+		WithheldEffect effect = ClassifyGuestVisibleEffect(itCode);
+		if (effect == WithheldEffect::Count)
 		{
 			return false;
 		}
-		s_inRuntimePresent = true;
-		// The command processor reads its stream as big-endian words, so the
-		// packet is assembled the same way the guest assembles it rather than
-		// in host order.
-		std::array<uint32be, 12> packet{};
-		packet[0] = pm4HeaderType3(IT_HLE_COPY_COLORBUFFER_TO_SCANBUFFER, 9);
-		packet[1] = present.physicalAddress;
-		packet[2] = present.width;
-		packet[3] = present.height;
-		packet[4] = present.pitch;
-		packet[5] = present.tileMode;
-		packet[6] = present.swizzle;
-		packet[7] = present.sliceIndex;
-		packet[8] = present.format;
-		packet[9] = present.renderTarget;
-		packet[10] = pm4HeaderType3(IT_HLE_TRIGGER_SCANBUFFER_SWAP, 1);
-		packet[11] = 0; // reserved
-		bool submitted =
-			SubmitDisplayList(packet.data(), static_cast<uint32_t>(packet.size() * sizeof(uint32be)));
-		s_inRuntimePresent = false;
-		return submitted;
+		// The runtime's own present is the one presentation it is allowed:
+		// SubmitPresent assembles exactly those two packets.
+		if (effect == WithheldEffect::Presentation && s_inRuntimePresent)
+		{
+			return false;
+		}
+		return Withhold(effect);
+	}
+
+	bool WithholdReadbackFromRuntimeSubmission()
+	{
+		return Withhold(WithheldEffect::TextureReadback);
+	}
+
+	namespace
+	{
+		// Both presents the runtime makes share this: the guest's own packet
+		// encoding, fed through the same command processor, marked as the
+		// runtime's so the swap it may contain publishes no frame end.
+		bool SubmitRuntimePresentPackets(const PresentArguments& present, bool swap)
+		{
+			// Re-entering through our own swap would publish a frame boundary
+			// the guest never reached. Refusing a nested present is not a
+			// limitation to work around; there is no such thing as a present
+			// inside a present.
+			if (s_inRuntimePresent)
+			{
+				return false;
+			}
+			s_inRuntimePresent = true;
+			// The command processor reads its stream as big-endian words, so
+			// the packet is assembled the same way the guest assembles it
+			// rather than in host order.
+			std::array<uint32be, 12> packet{};
+			packet[0] = pm4HeaderType3(IT_HLE_COPY_COLORBUFFER_TO_SCANBUFFER, 9);
+			packet[1] = present.physicalAddress;
+			packet[2] = present.width;
+			packet[3] = present.height;
+			packet[4] = present.pitch;
+			packet[5] = present.tileMode;
+			packet[6] = present.swizzle;
+			packet[7] = present.sliceIndex;
+			packet[8] = present.format;
+			packet[9] = present.renderTarget;
+			packet[10] = pm4HeaderType3(IT_HLE_TRIGGER_SCANBUFFER_SWAP, 1);
+			packet[11] = 0; // reserved
+			size_t words = swap ? packet.size() : 10;
+			bool submitted =
+				SubmitDisplayList(packet.data(), static_cast<uint32_t>(words * sizeof(uint32be)));
+			s_inRuntimePresent = false;
+			return submitted;
+		}
+	} // namespace
+
+	bool SubmitPresent(const PresentArguments& present)
+	{
+		return SubmitRuntimePresentPackets(present, true);
+	}
+
+	bool SubmitScanBufferCopy(const PresentArguments& present)
+	{
+		return SubmitRuntimePresentPackets(present, false);
 	}
 
 	bool RequestFrameCapture(CaptureCallback callback)
