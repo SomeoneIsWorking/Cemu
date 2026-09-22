@@ -1,8 +1,8 @@
 #include "util/crypto/aes128.h"
+#include "Boot/SystemBringup.h"
 #include "WindowSystem.h"
 #include "Common/FileStream.h"
 
-void CemuCommonInit();
 
 typedef struct  
 {
@@ -31,7 +31,7 @@ void loadPPCBootrom()
 
 void mainEmulatorLLE()
 {
-	CemuCommonInit();
+	SystemBringup::Run();
 	// memory init
 	memory_initPhysicalLayout();
 	

@@ -1,3 +1,4 @@
+#include "Boot/SystemBringup.h"
 #include "Cafe/HW/Latte/Core/LatteFrameHooks.h"
 #include "WindowSystem.h"
 #include "util/crypto/aes128.h"
@@ -53,50 +54,12 @@ extern "C"
 }
 #endif
 
-std::atomic_bool g_isGPUInitFinished = false;
-
 std::wstring executablePath;
 
 // some implementations of _putenv dont copy the string and instead only store a pointer
 // thus we use a helper to keep a permanent copy
-std::vector<std::string*> sPutEnvMap;
 
-void _putenvSafe(const char* c)
-{
-    auto s = new std::string(c);
-    sPutEnvMap.emplace_back(s);
-    _putenv(s->c_str());
-}
 
-void reconfigureGLDrivers()
-{
-#ifdef ENABLE_OPENGL
-	// reconfigure GL drivers to store
-	const fs::path nvCacheDir = ActiveSettings::GetCachePath("shaderCache/driver/nvidia/");
-
-	std::error_code err;
-	fs::create_directories(nvCacheDir, err);
-
-	std::string nvCacheDirEnvOption("__GL_SHADER_DISK_CACHE_PATH=");
-	nvCacheDirEnvOption.append(_pathToUtf8(nvCacheDir));
-
-#if BOOST_OS_WINDOWS
-	std::wstring tmpW = boost::nowide::widen(nvCacheDirEnvOption);
-	_wputenv(tmpW.c_str());
-#else
-    _putenvSafe(nvCacheDirEnvOption.c_str());
-#endif
-    _putenvSafe("__GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1");
-#endif
-}
-
-void reconfigureVkDrivers()
-{
-#ifdef ENABLE_VULKAN
-    _putenvSafe("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1=1");
-    _putenvSafe("DISABLE_VK_LAYER_VALVE_steam_fossilize_1=1");
-#endif
-}
 
 void WindowsInitCwd()
 {
@@ -113,46 +76,6 @@ void WindowsInitCwd()
 	#endif
 }
 
-void CemuCommonInit()
-{
-	reconfigureGLDrivers();
-	reconfigureVkDrivers();
-	// crypto init
-	AES128_init();
-	// init PPC timer
-	// call this as early as possible because it measures frequency of RDTSC using an asynchronous thread over 3 seconds
-	PPCTimer_init();
-
-	WindowsInitCwd();
-    ExceptionHandler_Init();
-	// read config
-	GetConfigHandle().Load();
-	if (NetworkConfig::XMLExists())
-		n_config.Load();
-	// parallelize expensive init code
-	std::future<int> futureInitAudioAPI = std::async(std::launch::async, []{ IAudioAPI::InitializeStatic(); IAudioInputAPI::InitializeStatic(); return 0; });
-	std::future<int> futureInitGraphicPacks = std::async(std::launch::async, []{ GraphicPack2::LoadAll(); return 0; });
-	InputManager::instance().load();
-	futureInitAudioAPI.wait();
-	futureInitGraphicPacks.wait();
-	// init Cafe system
-	CafeSystem::Initialize();
-	// init title list
-	CafeTitleList::Initialize(ActiveSettings::GetUserDataPath("title_list_cache.xml"));
-	for (auto& it : GetConfig().game_paths)
-		CafeTitleList::AddScanPath(_utf8ToPath(it));
-	fs::path mlcPath = ActiveSettings::GetMlcPath();
-	if (!mlcPath.empty())
-		CafeTitleList::SetMLCPath(mlcPath);
-	CafeTitleList::Refresh();
-	// init save list
-	CafeSaveList::Initialize();
-	if (!mlcPath.empty())
-	{
-		CafeSaveList::SetMLCPath(mlcPath);
-		CafeSaveList::Refresh();
-	}
-}
 
 void mainEmulatorLLE();
 void ppcAsmTest();
@@ -236,6 +159,7 @@ int wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int
 #ifdef HAS_SDL
 	SDL_SetMainReady();
 #endif
+	WindowsInitCwd();
 	InstallFirstPartyHooks();
 	auto parse_rc = LaunchSettings::HandleCommandline(lpCmdLine);
 	if (parse_rc.has_value())
@@ -252,6 +176,7 @@ int main(int argc, char* argv[])
 #ifdef HAS_SDL
 	SDL_SetMainReady();
 #endif
+	WindowsInitCwd();
 	InstallFirstPartyHooks();
 	auto parse_rc = LaunchSettings::HandleCommandline(argc, argv);
 	if (parse_rc.has_value())

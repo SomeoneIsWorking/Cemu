@@ -1,4 +1,5 @@
 #include "wxCemuConfig.h"
+#include "Cafe/Filesystem/MlcStorage.h"
 #include "wxgui/wxgui.h"
 #include "wxgui/GeneralSettings2.h"
 #include "wxgui/CemuApp.h"
@@ -2387,7 +2388,7 @@ void GeneralSettings2::OnMLCPathSelect(wxCommandEvent& event)
 		wxMessageDialog dialog(this, message, _("Warning"), wxYES_NO | wxCENTRE | wxICON_WARNING);
 		if(dialog.ShowModal() == wxID_NO)
 			return;
-		if( !CemuApp::CreateDefaultMLCFiles(newMlc) ) // creating also acts as a check for read+write access
+		if( !MlcStorage::CreateDefaultFiles(newMlc) ) // creating also acts as a check for read+write access
 		{
 			wxMessageBox(_("Failed to create default MLC files in the selected directory. The MLC path has not been changed"), _("Error"), wxOK | wxCENTRE | wxICON_ERROR, this);
 			return;
@@ -2398,7 +2399,7 @@ void GeneralSettings2::OnMLCPathSelect(wxCommandEvent& event)
 		// ask user if they want to create a new mlc structure at the choosen location
 		wxString message = _("The selected directory does not contain the expected MLC structure. Do you want to create a new MLC structure in this directory?\nNote that changing the MLC location will not transfer any accounts or save files.");
 		wxMessageDialog dialog(this, message, _("Warning"), wxYES_NO | wxCENTRE | wxICON_WARNING);
-		if( !CemuApp::CreateDefaultMLCFiles(newMlc) )
+		if( !MlcStorage::CreateDefaultFiles(newMlc) )
 		{
 			wxMessageBox(_("Failed to create default MLC files in the selected directory. The MLC path has not been changed"), _("Error"), wxOK | wxCENTRE | wxICON_ERROR, this);
 			return;

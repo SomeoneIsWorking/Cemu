@@ -12,6 +12,8 @@ add_library(CemuCafe
   Filesystem/fscDeviceWud.cpp
   Filesystem/fscDeviceWuhb.cpp
   Filesystem/fsc.h
+  Filesystem/MlcStorage.cpp
+  Filesystem/MlcStorage.h
   Filesystem/FST/FST.cpp
   Filesystem/FST/FST.h
   Filesystem/FST/fstUtil.h
@@ -617,6 +619,7 @@ if(ENABLE_METAL)
     )
 
     target_link_libraries(CemuCafe PRIVATE
+	CemuResource
         "-framework Metal"
         "-framework QuartzCore"
     )

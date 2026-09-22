@@ -18,7 +18,6 @@ public:
 	std::vector<const wxLanguageInfo*> GetLanguages() const;
 
 	static bool CheckMLCPath(const fs::path& mlc);
-	static bool CreateDefaultMLCFiles(const fs::path& mlc);
 	static void CreateDefaultCemuFiles();
 
 	static void InitializeNewMLCOrFail(fs::path mlc);

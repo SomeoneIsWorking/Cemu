@@ -54,6 +54,7 @@ function(cemu_use_precompiled_header target_name)
 endfunction()
 
 add_subdirectory(Common)
+add_subdirectory(Boot)
 add_subdirectory(gui)
 add_subdirectory(Cafe)
 add_subdirectory(Cemu)
