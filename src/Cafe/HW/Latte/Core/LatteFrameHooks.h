@@ -47,6 +47,23 @@ namespace LatteFrameHooks
 		uint32_t blockAddressCount;
 	};
 
+	// The nine arguments of the packet that copies a colour buffer to a scan
+	// buffer, in the order the guest writes them. They are what a present is
+	// made of, so a first-party runtime that wants to present a frame of its
+	// own has to have seen one first rather than inventing plausible values.
+	struct PresentArguments
+	{
+		uint32_t physicalAddress;
+		uint32_t width;
+		uint32_t height;
+		uint32_t pitch;
+		uint32_t tileMode;
+		uint32_t swizzle;
+		uint32_t sliceIndex;
+		uint32_t format;
+		uint32_t renderTarget;
+	};
+
 	class Observer
 	{
 	  public:
@@ -54,6 +71,7 @@ namespace LatteFrameHooks
 
 		virtual void OnDisplayList(const DisplayList& list) = 0;
 		virtual void OnUniformAssembly(const UniformAssembly& assembly) = 0;
+		virtual void OnPresent(const PresentArguments& present) = 0;
 		virtual void OnFrameEnd() = 0;
 	};
 
@@ -80,6 +98,20 @@ namespace LatteFrameHooks
 	// from the one after it. False means no capture was armed, which is a
 	// refusal rather than a capture that silently never arrives.
 	bool RequestFrameCapture(CaptureCallback callback);
+
+	// Present a frame the runtime has finished with, without waiting for the
+	// guest's next swap. This builds the same two packets the guest emits --
+	// the colour-buffer copy and the scan-buffer swap -- and feeds them
+	// through the same command processor, so the encoding stays owned by the
+	// code that already owns it and the runtime supplies only the arguments
+	// it observed. False means nothing was submitted.
+	bool SubmitPresent(const PresentArguments& present);
+
+	// True while SubmitPresent is running. The swap packet it submits reaches
+	// the same handler the guest's swap does, which would otherwise report a
+	// frame end for a frame the guest never finished -- and re-enter whatever
+	// the observer does there, from inside itself.
+	bool InRuntimePresent();
 
 	// Feed a recorded buffer back to the command processor as if the guest had
 	// referenced it. The caller owns the memory and it must outlive the call.

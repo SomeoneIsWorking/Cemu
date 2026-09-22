@@ -72,6 +72,11 @@ public:
 	void RequestScreenshot(ScreenshotSaveFunction onSaveScreenshot);
 	void CancelScreenshotRequest();
 
+	// A second request replaces the first, whose callback is then never
+	// called. A caller that needs to know its capture will arrive has to be
+	// able to ask.
+	bool IsScreenshotRequested() const { return m_screenshot_requested; }
+
 	virtual void HandleScreenshotRequest(LatteTextureView* texView, bool padView){}
 
 	virtual void DrawBackbufferQuad(LatteTextureView* texView, RendererOutputShader* shader, bool useLinearTexFilter,

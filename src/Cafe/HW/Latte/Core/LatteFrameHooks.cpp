@@ -1,7 +1,9 @@
 #include "Cafe/HW/Latte/Core/LatteFrameHooks.h"
 
+#include "Cafe/HW/Latte/Core/LattePM4.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 
+#include <array>
 #include <vector>
 
 namespace LatteFrameHooks
@@ -21,12 +23,61 @@ namespace LatteFrameHooks
 		return s_observer;
 	}
 
+	namespace
+	{
+		// Owned by the Latte thread, which is the only thread that submits.
+		bool s_inRuntimePresent = false;
+	} // namespace
+
+	bool InRuntimePresent()
+	{
+		return s_inRuntimePresent;
+	}
+
+	bool SubmitPresent(const PresentArguments& present)
+	{
+		// Re-entering through our own swap would publish a frame boundary the
+		// guest never reached. Refusing a nested present is not a limitation
+		// to work around; there is no such thing as a present inside a present.
+		if (s_inRuntimePresent)
+		{
+			return false;
+		}
+		s_inRuntimePresent = true;
+		// The command processor reads its stream as big-endian words, so the
+		// packet is assembled the same way the guest assembles it rather than
+		// in host order.
+		std::array<uint32be, 12> packet{};
+		packet[0] = pm4HeaderType3(IT_HLE_COPY_COLORBUFFER_TO_SCANBUFFER, 9);
+		packet[1] = present.physicalAddress;
+		packet[2] = present.width;
+		packet[3] = present.height;
+		packet[4] = present.pitch;
+		packet[5] = present.tileMode;
+		packet[6] = present.swizzle;
+		packet[7] = present.sliceIndex;
+		packet[8] = present.format;
+		packet[9] = present.renderTarget;
+		packet[10] = pm4HeaderType3(IT_HLE_TRIGGER_SCANBUFFER_SWAP, 1);
+		packet[11] = 0; // reserved
+		bool submitted =
+			SubmitDisplayList(packet.data(), static_cast<uint32_t>(packet.size() * sizeof(uint32be)));
+		s_inRuntimePresent = false;
+		return submitted;
+	}
+
 	bool RequestFrameCapture(CaptureCallback callback)
 	{
 		// Before a renderer exists there is nothing to present and nothing to
 		// capture. Refusing here is the difference between "no renderer yet"
 		// and "armed, and the image never came".
 		if (!callback || g_renderer == nullptr)
+		{
+			return false;
+		}
+		// Arming over an outstanding request would replace its callback, and
+		// the first capture would simply never arrive. Refusing says so.
+		if (g_renderer->IsScreenshotRequested())
 		{
 			return false;
 		}

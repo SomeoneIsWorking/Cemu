@@ -1016,6 +1016,16 @@ LatteCMDPtr LatteCP_itHLECopyColorBufferToScanBuffer(LatteCMDPtr cmd, uint32 nWo
 	uint32 colorBufferFormat = LatteReadCMD();
 	uint32 renderTarget = LatteReadCMD();
 
+	if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
+	{
+		LatteFrameHooks::PresentArguments present{colorBufferPtr, colorBufferWidth,
+												  colorBufferHeight, colorBufferPitch,
+												  (uint32)colorBufferTilemode, colorBufferSwizzle,
+												  colorBufferSliceIndex, colorBufferFormat,
+												  renderTarget};
+		observer->OnPresent(present);
+	}
+
 	LatteRenderTarget_itHLECopyColorBufferToScanBuffer(colorBufferPtr, colorBufferWidth, colorBufferHeight, colorBufferSliceIndex, colorBufferFormat, colorBufferPitch, colorBufferTilemode, colorBufferSwizzle, renderTarget);
 
 	return cmd;

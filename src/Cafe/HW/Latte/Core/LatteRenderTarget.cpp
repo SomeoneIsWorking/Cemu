@@ -687,7 +687,11 @@ void LatteRenderTarget_itHLESwapScanBuffer()
 	g_renderer->SwapBuffers(true, true);
 	if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
 	{
-		observer->OnFrameEnd();
+		// A present the runtime made is not a frame the guest finished.
+		if (!LatteFrameHooks::InRuntimePresent())
+		{
+			observer->OnFrameEnd();
+		}
 	}
 
 	catchOpenGLError();
