@@ -81,6 +81,13 @@ public:
 			g_renderer->draw_execute(baseVertex, baseInstance, numInstances, count, MPTR_NULL, Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE::AUTO, m_drawcallContext);
 		}
 		LatteFrameHooks::NoteRuntimeDraw();
+		if (!LatteFrameHooks::InRuntimeSubmission())
+		{
+			if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
+			{
+				observer->OnGuestDraw(LatteFrameHooks::InCommandBuffer());
+			}
+		}
 		performanceMonitor.cycle[performanceMonitor.cycleIndex].drawCallCounter++;
 		if (!m_drawcallContext.isFirst)
 			performanceMonitor.cycle[performanceMonitor.cycleIndex].fastDrawCallCounter++;
@@ -284,6 +291,7 @@ void LatteCP_itIndirectBufferDepr(LatteCMDPtr cmd, uint32 nWords)
 		}
 		drawPassCtx.PushCurrentCommandQueuePos(buf, buf, buf + sizeInU32s);
 
+		LatteFrameHooks::CommandBufferWalk walk;
 		LatteCP_processCommandBuffer(drawPassCtx);
 		if (drawPassCtx.isWithinDrawPass())
 			drawPassCtx.endDrawPass();

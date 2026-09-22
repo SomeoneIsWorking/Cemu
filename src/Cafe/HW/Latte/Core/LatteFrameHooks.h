@@ -102,6 +102,11 @@ namespace LatteFrameHooks
 		virtual void OnUniformAssembly(const UniformAssembly& assembly) = 0;
 		virtual void OnPresent(const PresentArguments& present) = 0;
 		virtual void OnFrameEnd() = 0;
+		// Every draw the title issues, and whether it came out of a command
+		// buffer the recorder was shown or straight from the ring. A recording
+		// made of command buffers can only ever replay the first kind, so the
+		// split is the denominator for how much of a frame a replay is.
+		virtual void OnGuestDraw(bool fromCommandBuffer) = 0;
 		// One per outermost runtime submission, after it has been processed.
 		virtual void OnRuntimeSubmission(const SubmissionSummary& summary) = 0;
 	};
@@ -164,6 +169,20 @@ namespace LatteFrameHooks
 	// command processor calls these; nothing else should.
 	void NoteRuntimePacket();
 	void NoteRuntimeDraw();
+
+	// True while a command buffer the guest submitted is being walked.
+	bool InCommandBuffer();
+
+	// Marks such a walk for as long as it is in scope. Counted, so a nested
+	// buffer does not clear the mark when the inner one finishes.
+	class CommandBufferWalk
+	{
+	  public:
+		CommandBufferWalk();
+		~CommandBufferWalk();
+		CommandBufferWalk(const CommandBufferWalk&) = delete;
+		CommandBufferWalk& operator=(const CommandBufferWalk&) = delete;
+	};
 
 	// Feed a recorded buffer back to the command processor as if the guest had
 	// referenced it. The caller owns the memory and it must outlive the call.

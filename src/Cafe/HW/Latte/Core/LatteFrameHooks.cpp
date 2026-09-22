@@ -67,6 +67,27 @@ namespace LatteFrameHooks
 		}
 	}
 
+	namespace
+	{
+		// Owned by the Latte thread, which is the only thread that walks them.
+		int s_commandBufferDepth = 0;
+	} // namespace
+
+	bool InCommandBuffer()
+	{
+		return s_commandBufferDepth > 0;
+	}
+
+	CommandBufferWalk::CommandBufferWalk()
+	{
+		++s_commandBufferDepth;
+	}
+
+	CommandBufferWalk::~CommandBufferWalk()
+	{
+		--s_commandBufferDepth;
+	}
+
 	void NoteRuntimePacket()
 	{
 		if (s_runtimeSubmissionDepth > 0)
