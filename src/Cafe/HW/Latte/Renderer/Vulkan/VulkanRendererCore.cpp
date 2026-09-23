@@ -1402,9 +1402,18 @@ namespace
 				}
 				cemu_assert(draw.vertexBufferCount < LatteFrameHooks::DrawPrepared::kMaxVertexBuffers);
 				uint32 bufferStride = bufferGroup.getCurrentBufferStride(LatteGPUState.contextRegister);
+				for (sint32 index = 0; index < bufferGroup.attribCount; ++index)
+				{
+					LatteParsedFetchShaderAttribute_t* attribute = bufferGroup.attrib + index;
+					cemu_assert(draw.vertexAttributeCount < LatteFrameHooks::DrawPrepared::kMaxVertexAttributes);
+					draw.vertexAttributes[draw.vertexAttributeCount++] = {
+						draw.vertexBufferCount, attribute->offset, LatteShaderRecompiler_getAttributeSize(attribute),
+						attribute->format, static_cast<uint8_t>(attribute->endianSwap), attribute->semanticId,
+						attribute->fetchType == LatteConst::VertexFetchType2::INSTANCE_DATA};
+				}
 				draw.vertexBuffers[draw.vertexBufferCount++] = {
 					memory_getPointerFromPhysicalOffset(bufferAddress),
-					bufferGroup.getReadSize(bufferStride, maxIndex, baseInstance, instanceCount)};
+					bufferGroup.getReadSize(bufferStride, maxIndex, baseInstance, instanceCount), bufferStride};
 			}
 		}
 		observer->OnDrawPrepared(draw);

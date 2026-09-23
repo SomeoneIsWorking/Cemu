@@ -77,10 +77,30 @@ namespace LatteFrameHooks
 		{
 			const void* data;
 			uint32_t sizeInBytes;
+			// Bytes from one vertex (or instance) to the next.
+			uint32_t stride;
+		};
+
+		// One value the fetch shader reads per vertex, as the guest laid it
+		// out: `sizeInBytes` at `offset` into each stride of vertexBuffers[buffer].
+		struct VertexAttribute
+		{
+			uint32_t buffer;
+			uint32_t offset;
+			uint32_t sizeInBytes;
+			// Latte's data format, and its VertexFetchEndianMode.
+			uint8_t format;
+			uint8_t endianSwap;
+			// Which vertex shader input it feeds.
+			uint8_t semanticId;
+			bool perInstance;
 		};
 
 		// The attribute buffers a fetch shader can source.
 		static constexpr uint32_t kMaxVertexBuffers = 16;
+		// Bounds the attribute list as kMaxUniformBlockSources bounds the
+		// block list: real fetch shaders read a handful.
+		static constexpr uint32_t kMaxVertexAttributes = 32;
 
 		uint64_t vertexShaderBaseHash;
 		uint64_t vertexShaderAuxHash;
@@ -88,6 +108,8 @@ namespace LatteFrameHooks
 		bool fromRuntime;
 		VertexBuffer vertexBuffers[kMaxVertexBuffers];
 		uint32_t vertexBufferCount;
+		VertexAttribute vertexAttributes[kMaxVertexAttributes];
+		uint32_t vertexAttributeCount;
 	};
 
 	// The nine arguments of the packet that copies a colour buffer to a scan

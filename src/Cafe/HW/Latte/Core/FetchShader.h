@@ -15,6 +15,8 @@ struct LatteParsedFetchShaderAttribute_t
 	uint32					attributeBufferIndex;
 };
 
+uint32 LatteShaderRecompiler_getAttributeSize(LatteParsedFetchShaderAttribute_t* attrib);
+
 struct LatteParsedFetchShaderBufferGroup_t
 {
 	uint32 attributeBufferIndex{}; // index of buffer (0 to 15 are valid)
