@@ -156,7 +156,7 @@ void SwapchainInfoVk::Create()
 	m_acquireIndex = 0;
 	hasDefinedSwapchainImage = false;
 
-	m_queueDepth = 0;
+	m_queuedTitlePresentIds.clear();
 }
 
 void SwapchainInfoVk::Cleanup()

@@ -28,6 +28,7 @@
 #include "Cafe/TitleList/GameInfo.h"
 
 #include "Cafe/HW/Latte/Core/LatteTiming.h" // vsync control
+#include "Cafe/HW/Latte/Core/LatteFrameHooks.h"
 
 #include <cstdint>
 #include <glslang/Public/ShaderLang.h>
@@ -3040,9 +3041,17 @@ void VulkanRenderer::SwapBuffer(bool mainWindow)
 
 	cemu_assert_debug(m_numSubmittedCmdBuffers > 0);
 
-	// wait for the previous frame to finish rendering
-	WaitCommandBufferFinished(m_commandBufferIDOfPrevFrame);
-	m_commandBufferIDOfPrevFrame = currentFrameCmdBufferID;
+	// wait for the previous frame to finish rendering. The runtime's own
+	// present sits between two of the title's frames: the title's next present
+	// waits for the title's frame before it, not for the runtime's, which was
+	// submitted a moment earlier and would hold the GPU thread for its whole
+	// render.
+	const bool runtimePresent = LatteFrameHooks::InRuntimePresent();
+	if (!runtimePresent)
+	{
+		WaitCommandBufferFinished(m_commandBufferIDOfPrevFrame);
+		m_commandBufferIDOfPrevFrame = currentFrameCmdBufferID;
+	}
 
 	chainInfo.WaitAvailableFence();
 
@@ -3067,11 +3076,10 @@ void VulkanRenderer::SwapBuffer(bool mainWindow)
 
 		presentInfo.pNext = &presentId;
 
-		if(chainInfo.m_queueDepth >= chainInfo.m_maxQueued)
+		while (!runtimePresent && chainInfo.m_queuedTitlePresentIds.size() >= chainInfo.m_maxQueued)
 		{
-			uint64 waitFrameId = chainInfo.m_presentId - chainInfo.m_queueDepth;
-			vkWaitForPresentKHR(m_logicalDevice, chainInfo.m_swapchain, waitFrameId, 40'000'000);
-			chainInfo.m_queueDepth--;
+			vkWaitForPresentKHR(m_logicalDevice, chainInfo.m_swapchain, chainInfo.m_queuedTitlePresentIds.front(), 40'000'000);
+			chainInfo.m_queuedTitlePresentIds.pop_front();
 		}
 	}
 
@@ -3085,7 +3093,8 @@ void VulkanRenderer::SwapBuffer(bool mainWindow)
 
 	if(result >= 0)
 	{
-		chainInfo.m_queueDepth++;
+		if (!runtimePresent)
+			chainInfo.m_queuedTitlePresentIds.push_back(chainInfo.m_presentId);
 		chainInfo.m_presentId++;
 	}
 

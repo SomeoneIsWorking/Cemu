@@ -2,6 +2,7 @@
 
 #include "util/math/vector2.h"
 #include <vulkan/vulkan_core.h>
+#include <deque>
 
 struct SwapchainInfoVk
 {
@@ -72,7 +73,11 @@ struct SwapchainInfoVk
 	VkExtent2D m_actualExtent{};
 	uint32 swapchainImageIndex = (uint32)-1;
 	uint64 m_presentId = 1;
-	uint64 m_queueDepth = 0; // number of frames with pending presentation requests
+	// The title's presents still pending presentation, oldest first. A present
+	// the runtime makes between two of the title's is not counted: it is shown
+	// in between them, not instead of one, and waiting for it would stall the
+	// title's own present behind a vblank (LatteFrameHooks::SubmitPresent).
+	std::deque<uint64> m_queuedTitlePresentIds;
 	uint64 m_maxQueued = 0; // the maximum number of frames with presentation requests.
 
 
