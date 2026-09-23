@@ -237,6 +237,36 @@ namespace LatteFrameHooks
 		CommandBufferWalk& operator=(const CommandBufferWalk&) = delete;
 	};
 
+	// What putting the guest's frame back by copy did. The copies restore the
+	// contents of every texture subresource the runtime wrote. The other
+	// counts are writes a copy cannot undo; when any is nonzero, the
+	// runtime's frame is still in guest-visible state and the caller must
+	// restore the guest's frame another way.
+	struct GuestStateRestore
+	{
+		uint32_t subresourcesRestored;
+		// Written, but the renderer keeps no copies (only Vulkan does).
+		uint32_t subresourcesUncopied;
+		// Created while guarded: their contents were never the guest's, so
+		// there was nothing to copy aside.
+		uint32_t texturesCreated;
+		// Buffers written by stream-out, which are not textures.
+		uint32_t streamoutWrites;
+
+		bool Complete() const
+		{
+			return subresourcesUncopied == 0 && texturesCreated == 0 && streamoutWrites == 0;
+		}
+	};
+
+	// From here on, keep a copy of each texture subresource before its first
+	// write. The runtime opens this before drawing a frame of its own over the
+	// guest's, and must restore before the guest's next packet runs.
+	void GuardGuestState();
+
+	// Copy back everything kept since GuardGuestState and stop keeping.
+	GuestStateRestore RestoreGuestState();
+
 	// Feed a recorded buffer back to the command processor as if the guest had
 	// referenced it. The caller owns the memory and it must outlive the call.
 	// False means it was not submitted, which is a refusal and not a silent

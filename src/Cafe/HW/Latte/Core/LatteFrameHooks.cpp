@@ -1,5 +1,6 @@
 #include "Cafe/HW/Latte/Core/LatteFrameHooks.h"
 
+#include "Cafe/HW/Latte/Core/LatteGuestStateGuard.h"
 #include "Cafe/HW/Latte/Core/LattePM4.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 
@@ -245,6 +246,16 @@ namespace LatteFrameHooks
 				return std::nullopt;
 			});
 		return true;
+	}
+
+	void GuardGuestState()
+	{
+		LatteGuestStateGuard::Open();
+	}
+
+	GuestStateRestore RestoreGuestState()
+	{
+		return LatteGuestStateGuard::Close();
 	}
 
 } // namespace LatteFrameHooks

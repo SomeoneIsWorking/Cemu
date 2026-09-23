@@ -40,6 +40,13 @@ enum class RendererAPI
 
 using ImTextureID = void*;
 
+// Storage a renderer owns for one copied texture subresource.
+class LatteTextureShadow
+{
+public:
+	virtual ~LatteTextureShadow() = default;
+};
+
 class Renderer
 {
 public:
@@ -125,6 +132,13 @@ public:
 	virtual void texture_copyImageSubData(LatteTexture* src, sint32 srcMip, sint32 effectiveSrcX, sint32 effectiveSrcY, sint32 srcSlice, LatteTexture* dst, sint32 dstMip, sint32 effectiveDstX, sint32 effectiveDstY, sint32 dstSlice, sint32 effectiveCopyWidth, sint32 effectiveCopyHeight, sint32 srcDepth) = 0;
 
 	virtual LatteTextureReadbackInfo* texture_createReadback(LatteTextureView* textureView) = 0;
+
+	// One subresource of a texture, copied aside so that it can be put back
+	// after the runtime has drawn over it. Null means this renderer keeps no
+	// copies, which the caller counts rather than treats as success.
+	virtual std::unique_ptr<LatteTextureShadow> texture_createShadow(LatteTexture* texture, sint32 sliceIndex, sint32 mipIndex) { return nullptr; }
+	virtual void texture_copyToShadow(LatteTexture* texture, sint32 sliceIndex, sint32 mipIndex, LatteTextureShadow& shadow) {}
+	virtual void texture_copyFromShadow(LatteTexture* texture, sint32 sliceIndex, sint32 mipIndex, LatteTextureShadow& shadow) {}
 
 	// surface copy
 	virtual void surfaceCopy_copySurfaceWithFormatConversion(LatteTexture* sourceTexture, sint32 srcMip, sint32 srcSlice, LatteTexture* destinationTexture, sint32 dstMip, sint32 dstSlice, sint32 width, sint32 height) = 0;

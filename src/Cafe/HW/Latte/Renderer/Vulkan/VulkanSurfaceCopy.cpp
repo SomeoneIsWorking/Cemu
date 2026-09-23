@@ -1,5 +1,6 @@
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanRenderer.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
+#include "Cafe/HW/Latte/Core/LatteGuestStateGuard.h"
 
 struct CopyShaderPushConstantData_t
 {
@@ -788,6 +789,7 @@ bool vkIsBitCompatibleColorDepthFormat(VkFormat format1, VkFormat format2)
 
 void VulkanRenderer::surfaceCopy_copySurfaceWithFormatConversion(LatteTexture* sourceTexture, sint32 srcMip, sint32 srcSlice, LatteTexture* destinationTexture, sint32 dstMip, sint32 dstSlice, sint32 width, sint32 height)
 {
+	LatteGuestStateGuard::NoteWrite(destinationTexture, dstSlice, dstMip);
 	// scale copy size to effective size
 	sint32 effectiveCopyWidth = width;
 	sint32 effectiveCopyHeight = height;

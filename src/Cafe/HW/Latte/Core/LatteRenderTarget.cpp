@@ -17,6 +17,7 @@
 #include "input/InputManager.h"
 #include "Cafe/OS/libs/swkbd/swkbd.h"
 #include "Cafe/HW/Latte/Core/LatteFrameHooks.h"
+#include "Cafe/HW/Latte/Core/LatteGuestStateGuard.h"
 
 uint32 prevScissorX = 0;
 uint32 prevScissorY = 0;
@@ -609,6 +610,12 @@ bool LatteMRT::UpdateCurrentFBO()
 	else
 	{
 		SetDepthAndStencilAttachment(nullptr, false);
+	}
+	// The draw that follows writes every target in the list.
+	for (sint32 i = 0; i < sLatteRenderTargetState.rtUpdateListCount; i++)
+	{
+		LatteTextureView* target = sLatteRenderTargetState.rtUpdateList[i];
+		LatteGuestStateGuard::NoteWrite(target->baseTexture, target->firstSlice, target->firstMip);
 	}
 	catchOpenGLError();
 	if (colorBufferMask || depthBufferMask)

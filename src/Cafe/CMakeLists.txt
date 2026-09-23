@@ -147,6 +147,8 @@ add_library(CemuCafe
   HW/Latte/Core/LatteCaptureWindow.cpp
   HW/Latte/Core/LatteFrameHooks.cpp
   HW/Latte/Core/LatteFrameHooks.h
+  HW/Latte/Core/LatteGuestStateGuard.cpp
+  HW/Latte/Core/LatteGuestStateGuard.h
   HW/Latte/Core/LatteCaptureWindow.h
   HW/Latte/Core/LatteTiming.cpp
   HW/Latte/Core/LatteTiming.h
@@ -550,6 +552,7 @@ if (ENABLE_VULKAN)
     HW/Latte/Renderer/Vulkan/VulkanRenderer.cpp
     HW/Latte/Renderer/Vulkan/VulkanRenderer.h
     HW/Latte/Renderer/Vulkan/VulkanSurfaceCopy.cpp
+    HW/Latte/Renderer/Vulkan/VulkanTextureShadow.cpp
     HW/Latte/Renderer/Vulkan/VulkanTextureReadback.h
   )
 endif()

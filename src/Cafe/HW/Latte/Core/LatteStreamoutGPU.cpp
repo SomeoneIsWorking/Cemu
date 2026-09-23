@@ -3,6 +3,7 @@
 #include "Cafe/HW/Latte/Core/Latte.h"
 #include "Cafe/HW/Latte/Core/LatteDraw.h"
 #include "Cafe/HW/Latte/Core/LatteShader.h"
+#include "Cafe/HW/Latte/Core/LatteGuestStateGuard.h"
 #include "Cafe/GameProfile/GameProfile.h"
 #include "Cafe/HW/Latte/LegacyShaderDecompiler/LatteDecompiler.h"
 
@@ -154,6 +155,7 @@ void LatteStreamout_FinishDrawcall(bool useDirectMemoryMode)
 				continue;
 			if (activeStreamoutOperation.streamoutBufferWrite[i].rangeSize > 0)
 			{
+				LatteGuestStateGuard::NoteStreamoutWrite();
 				if(useDirectMemoryMode)
 					g_renderer->bufferCache_copyStreamoutToMainBuffer(activeStreamoutOperation.streamoutBufferWrite[i].ringBufferOffset, activeStreamoutOperation.streamoutBufferWrite[i].rangeAddr, activeStreamoutOperation.streamoutBufferWrite[i].rangeSize);
 				else
