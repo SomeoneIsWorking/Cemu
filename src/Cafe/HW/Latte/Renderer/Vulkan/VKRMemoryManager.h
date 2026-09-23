@@ -252,7 +252,8 @@ public:
 	VKRMemoryManager(class VulkanRenderer* renderer) :
 			m_stagingBuffer(renderer, this, VKR_BUFFER_TYPE::STAGING, 32u * 1024 * 1024),
 			m_indexBuffer(this, VKR_BUFFER_TYPE::INDEX, 4u * 1024 * 1024),
-			m_vertexStrideMetalBuffer(renderer, this, VKR_BUFFER_TYPE::STRIDE, 4u * 1024 * 1024)
+			m_vertexStrideMetalBuffer(renderer, this, VKR_BUFFER_TYPE::STRIDE, 4u * 1024 * 1024),
+			m_runtimeVertexBuffer(renderer, this, VKR_BUFFER_TYPE::STRIDE, 4u * 1024 * 1024)
 	{
 		m_vkr = renderer;
 	}
@@ -279,6 +280,7 @@ public:
 	VKRSynchronizedRingAllocator& getStagingAllocator() { return m_stagingBuffer; }; // allocator for texture/attribute/uniform uploads
 	VKRSynchronizedHeapAllocator& GetIndexAllocator() { return m_indexBuffer; }; // allocator for index data
 	VKRSynchronizedRingAllocator& getMetalStrideWorkaroundAllocator() { return m_vertexStrideMetalBuffer; }; // allocator for stride-adjusted vertex data
+	VKRSynchronizedRingAllocator& getRuntimeVertexAllocator() { return m_runtimeVertexBuffer; }; // allocator for vertex data a first-party runtime draws in place of the guest's
 
 	void cleanupBuffers(uint64 latestFinishedCommandBufferId)
 	{
@@ -286,6 +288,7 @@ public:
 		m_stagingBuffer.CleanupBuffer(latestFinishedCommandBufferId);
 		m_indexBuffer.CleanupBuffer(latestFinishedCommandBufferId);
 		m_vertexStrideMetalBuffer.CleanupBuffer(latestFinishedCommandBufferId);
+		m_runtimeVertexBuffer.CleanupBuffer(latestFinishedCommandBufferId);
 	}
 
 	bool FindMemoryType(uint32 typeFilter, VkMemoryPropertyFlags properties, uint32& memoryIndex) const; // searches for exact properties. Can gracefully fail without throwing exception (returns false)
@@ -311,4 +314,5 @@ public:
 		VKRSynchronizedRingAllocator m_stagingBuffer;
 		VKRSynchronizedHeapAllocator m_indexBuffer;
 		VKRSynchronizedRingAllocator m_vertexStrideMetalBuffer;
+		VKRSynchronizedRingAllocator m_runtimeVertexBuffer;
 };

@@ -1378,13 +1378,8 @@ void VulkanRenderer::draw_beginSequence()
 
 namespace
 {
-	void NotifyDrawPrepared(const LatteDecompilerShader* vertexShader, uint32 maxIndex, uint32 baseInstance, uint32 instanceCount)
+	LatteFrameHooks::DrawPrepared DescribeDrawPrepared(const LatteDecompilerShader* vertexShader, uint32 maxIndex, uint32 baseInstance, uint32 instanceCount)
 	{
-		LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver();
-		if (!observer)
-		{
-			return;
-		}
 		LatteFrameHooks::DrawPrepared draw{};
 		draw.vertexShaderBaseHash = vertexShader ? vertexShader->baseHash : 0;
 		draw.vertexShaderAuxHash = vertexShader ? vertexShader->auxHash : 0;
@@ -1413,12 +1408,46 @@ namespace
 				}
 				draw.vertexBuffers[draw.vertexBufferCount++] = {
 					memory_getPointerFromPhysicalOffset(bufferAddress),
-					bufferGroup.getReadSize(bufferStride, maxIndex, baseInstance, instanceCount), bufferStride};
+					bufferGroup.getReadSize(bufferStride, maxIndex, baseInstance, instanceCount), bufferStride,
+					bufferGroup.attributeBufferIndex};
 			}
 		}
-		observer->OnDrawPrepared(draw);
+		return draw;
 	}
 } // namespace
+
+void VulkanRenderer::draw_notifyPrepared(const LatteDecompilerShader* vertexShader, uint32 maxIndex, uint32 baseInstance, uint32 instanceCount)
+{
+	LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver();
+	if (!observer)
+	{
+		return;
+	}
+	LatteFrameHooks::DrawPrepared draw = DescribeDrawPrepared(vertexShader, maxIndex, baseInstance, instanceCount);
+	// A replacement lasts one draw: a replaced slot is marked unbound, and
+	// the buffer cache takes it as changed for the next draw (see
+	// vertexBindingsReplaced), so the guest's buffer is bound back.
+	draw.vertexReplaceable = draw.fromRuntime;
+	LatteFrameHooks::VertexReplacements replacements;
+	observer->OnDrawPrepared(draw, replacements);
+	if (!draw.vertexReplaceable)
+	{
+		return;
+	}
+	for (uint32 index = 0; index < draw.vertexBufferCount; ++index)
+	{
+		if (replacements.data[index] == nullptr)
+		{
+			continue;
+		}
+		const LatteFrameHooks::DrawPrepared::VertexBuffer& buffer = draw.vertexBuffers[index];
+		auto reservation = memoryManager->getRuntimeVertexAllocator().AllocateBufferMemory(buffer.sizeInBytes, 128);
+		memcpy(reservation.memPtr, replacements.data[index], buffer.sizeInBytes);
+		// Marks the slot unbound, so the next draw binds the guest's buffer again.
+		buffer_bindVertexStrideWorkaroundBuffer(reservation.vkBuffer, reservation.bufferOffset, buffer.slot, buffer.sizeInBytes);
+		m_state.vertexBindingsReplaced |= 1u << buffer.slot;
+	}
+}
 
 void VulkanRenderer::draw_execute_first(uint32 baseVertex, uint32 baseInstance, uint32 instanceCount, uint32 count, MPTR indexDataMPTR, Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE indexType, const LatteDrawcallContext& drawcallContext)
 {
@@ -1465,7 +1494,6 @@ void VulkanRenderer::draw_execute_first(uint32 baseVertex, uint32 baseInstance, 
 	uint32 indexMax = 0;
 	Renderer::IndexAllocation indexAllocation;
 	LatteIndices_decode(memory_getPointerFromVirtualOffset(indexDataMPTR), indexType, count, primitiveMode, indexMax, hostIndexType, hostIndexCount, indexAllocation);
-	NotifyDrawPrepared(vertexShader, indexMax + baseVertex, baseInstance, instanceCount);
 	VKRSynchronizedHeapAllocator::AllocatorReservation* indexReservation = (VKRSynchronizedHeapAllocator::AllocatorReservation*)indexAllocation.rendererInternal;
 	// update index binding
 	if (hostIndexType != INDEX_TYPE::NONE)
@@ -1508,6 +1536,8 @@ void VulkanRenderer::draw_execute_first(uint32 baseVertex, uint32 baseInstance, 
 		uint8 stageUniformModifiedMask = 0;
 		LatteBufferCache_Sync(indexMax + baseVertex, baseInstance, instanceCount, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, stageUniformModifiedMask);
 	}
+	m_state.vertexBindingsReplaced = 0;
+	draw_notifyPrepared(vertexShader, indexMax + baseVertex, baseInstance, instanceCount);
 
 	PipelineInfo* pipeline_info = draw_getOrCreateGraphicsPipeline(count);
 	m_state.activePipelineInfo = pipeline_info;
@@ -1634,7 +1664,6 @@ void VulkanRenderer::draw_execute_continued(uint32 baseVertex, uint32 baseInstan
 	uint32 indexMax = 0;
 	Renderer::IndexAllocation indexAllocation;
 	LatteIndices_decode(memory_getPointerFromVirtualOffset(indexDataMPTR), indexType, count, primitiveMode, indexMax, hostIndexType, hostIndexCount, indexAllocation);
-	NotifyDrawPrepared(vertexShader, indexMax + baseVertex, baseInstance, instanceCount);
 	VKRSynchronizedHeapAllocator::AllocatorReservation* indexReservation = (VKRSynchronizedHeapAllocator::AllocatorReservation*)indexAllocation.rendererInternal;
 	// update index binding
 	if (hostIndexType != INDEX_TYPE::NONE)
@@ -1674,8 +1703,10 @@ void VulkanRenderer::draw_execute_continued(uint32 baseVertex, uint32 baseInstan
 	else
 	{
 		// synchronize vertex and uniform cache and update buffer bindings
-		LatteBufferCache_Sync(indexMax + baseVertex, baseInstance, instanceCount, drawcallContext.vertexBufferDirtyMask, drawcallContext.vsUniformBufferDirtyMask, drawcallContext.psUniformBufferDirtyMask, drawcallContext.gsUniformBufferDirtyMask, stageUniformModifiedMask, true);
+		LatteBufferCache_Sync(indexMax + baseVertex, baseInstance, instanceCount, drawcallContext.vertexBufferDirtyMask | m_state.vertexBindingsReplaced, drawcallContext.vsUniformBufferDirtyMask, drawcallContext.psUniformBufferDirtyMask, drawcallContext.gsUniformBufferDirtyMask, stageUniformModifiedMask, true);
 	}
+	m_state.vertexBindingsReplaced = 0;
+	draw_notifyPrepared(vertexShader, indexMax + baseVertex, baseInstance, instanceCount);
 
 	m_state.descriptorSetsChanged = false;
 	PipelineInfo* pipeline_info = m_state.activePipelineInfo;
