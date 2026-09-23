@@ -1378,14 +1378,36 @@ void VulkanRenderer::draw_beginSequence()
 
 namespace
 {
-	void NotifyDrawPrepared(const LatteDecompilerShader* vertexShader)
+	void NotifyDrawPrepared(const LatteDecompilerShader* vertexShader, uint32 maxIndex, uint32 baseInstance, uint32 instanceCount)
 	{
-		if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
+		LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver();
+		if (!observer)
 		{
-			const bool vertexUniforms = vertexShader && vertexShader->resourceMapping.uniformVarsBufferBindingPoint >= 0;
-			observer->OnDrawPrepared({vertexShader ? vertexShader->baseHash : 0, vertexShader ? vertexShader->auxHash : 0,
-									  vertexUniforms, LatteFrameHooks::InRuntimeSubmission()});
+			return;
 		}
+		LatteFrameHooks::DrawPrepared draw{};
+		draw.vertexShaderBaseHash = vertexShader ? vertexShader->baseHash : 0;
+		draw.vertexShaderAuxHash = vertexShader ? vertexShader->auxHash : 0;
+		draw.vertexUniforms = vertexShader && vertexShader->resourceMapping.uniformVarsBufferBindingPoint >= 0;
+		draw.fromRuntime = LatteFrameHooks::InRuntimeSubmission();
+		if (LatteFetchShader* fetchShader = LatteSHRC_GetActiveFetchShader())
+		{
+			for (const auto& bufferGroup : fetchShader->bufferGroups)
+			{
+				uint32 bufferBaseRegisterIndex = mmSQ_VTX_ATTRIBUTE_BLOCK_START + bufferGroup.attributeBufferIndex * 7;
+				MPTR bufferAddress = LatteGPUState.contextRegister[bufferBaseRegisterIndex + 0];
+				if (bufferAddress == MPTR_NULL)
+				{
+					continue;
+				}
+				cemu_assert(draw.vertexBufferCount < LatteFrameHooks::DrawPrepared::kMaxVertexBuffers);
+				uint32 bufferStride = bufferGroup.getCurrentBufferStride(LatteGPUState.contextRegister);
+				draw.vertexBuffers[draw.vertexBufferCount++] = {
+					memory_getPointerFromPhysicalOffset(bufferAddress),
+					bufferGroup.getReadSize(bufferStride, maxIndex, baseInstance, instanceCount)};
+			}
+		}
+		observer->OnDrawPrepared(draw);
 	}
 } // namespace
 
@@ -1423,7 +1445,6 @@ void VulkanRenderer::draw_execute_first(uint32 baseVertex, uint32 baseInstance, 
 		uniformData_updateUniformVars(VulkanRendererConst::SHADER_STAGE_INDEX_FRAGMENT, pixelShader, s_vkUniformDataPS);
 	if (geometryShader)
 		uniformData_updateUniformVars(VulkanRendererConst::SHADER_STAGE_INDEX_GEOMETRY, geometryShader, s_vkUniformDataGS);
-	NotifyDrawPrepared(vertexShader);
 	// store where the read pointer should go after command buffer execution
 	m_cmdBufferUniformRingbufIndices[m_commandBufferIndex] = m_uniformVarBufferWriteIndex;
 
@@ -1435,6 +1456,7 @@ void VulkanRenderer::draw_execute_first(uint32 baseVertex, uint32 baseInstance, 
 	uint32 indexMax = 0;
 	Renderer::IndexAllocation indexAllocation;
 	LatteIndices_decode(memory_getPointerFromVirtualOffset(indexDataMPTR), indexType, count, primitiveMode, indexMax, hostIndexType, hostIndexCount, indexAllocation);
+	NotifyDrawPrepared(vertexShader, indexMax + baseVertex, baseInstance, instanceCount);
 	VKRSynchronizedHeapAllocator::AllocatorReservation* indexReservation = (VKRSynchronizedHeapAllocator::AllocatorReservation*)indexAllocation.rendererInternal;
 	// update index binding
 	if (hostIndexType != INDEX_TYPE::NONE)
@@ -1592,7 +1614,6 @@ void VulkanRenderer::draw_execute_continued(uint32 baseVertex, uint32 baseInstan
 		uniformData_updateUniformVarsIncremental(VulkanRendererConst::SHADER_STAGE_INDEX_FRAGMENT, pixelShader, stageUniformModifiedMask, s_vkUniformDataPS, drawcallContext.aluConstPSDirty, drawcallContext.psUniformBufferDirtyMask);
 	if (geometryShader)
 		uniformData_updateUniformVarsIncremental(VulkanRendererConst::SHADER_STAGE_INDEX_GEOMETRY, geometryShader, stageUniformModifiedMask, s_vkUniformDataGS, false, drawcallContext.gsUniformBufferDirtyMask);
-	NotifyDrawPrepared(vertexShader);
 	// store where the read pointer should go after command buffer execution
 	m_cmdBufferUniformRingbufIndices[m_commandBufferIndex] = m_uniformVarBufferWriteIndex;
 
@@ -1604,6 +1625,7 @@ void VulkanRenderer::draw_execute_continued(uint32 baseVertex, uint32 baseInstan
 	uint32 indexMax = 0;
 	Renderer::IndexAllocation indexAllocation;
 	LatteIndices_decode(memory_getPointerFromVirtualOffset(indexDataMPTR), indexType, count, primitiveMode, indexMax, hostIndexType, hostIndexCount, indexAllocation);
+	NotifyDrawPrepared(vertexShader, indexMax + baseVertex, baseInstance, instanceCount);
 	VKRSynchronizedHeapAllocator::AllocatorReservation* indexReservation = (VKRSynchronizedHeapAllocator::AllocatorReservation*)indexAllocation.rendererInternal;
 	// update index binding
 	if (hostIndexType != INDEX_TYPE::NONE)

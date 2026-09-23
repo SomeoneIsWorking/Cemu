@@ -30,6 +30,9 @@ struct LatteParsedFetchShaderBufferGroup_t
 	bool hasInstanceIndexAccess{};
 
 	uint32 getCurrentBufferStride(uint32* contextRegister) const;
+	// The bytes a draw can read from this buffer, whatever size the game
+	// gave it: up to the highest vertex and instance the draw fetches.
+	uint32 getReadSize(uint32 bufferStride, uint32 maxIndex, uint32 baseInstance, uint32 instanceCount) const;
 };
 
 struct LatteFetchShader

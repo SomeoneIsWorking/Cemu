@@ -151,6 +151,21 @@ uint32 LatteParsedFetchShaderBufferGroup_t::getCurrentBufferStride(uint32* conte
 	return bufferStride;
 }
 
+uint32 LatteParsedFetchShaderBufferGroup_t::getReadSize(uint32 bufferStride, uint32 maxIndex, uint32 baseInstance, uint32 instanceCount) const
+{
+	uint32 readSize = 0;
+	if (hasVtxIndexAccess)
+		readSize = bufferStride * (maxIndex + 1) + maxOffset;
+	if (hasInstanceIndexAccess)
+	{
+		uint32 readSizeInstance = bufferStride * ((baseInstance + instanceCount) + 1) + maxOffset;
+		readSize = std::max(readSize, readSizeInstance);
+	}
+	if (readSize == 0 || bufferStride == 0)
+		readSize += 128;
+	return readSize;
+}
+
 void LatteFetchShader::CalculateFetchShaderVkHash()
 {
 	// calculate SHA1 of all states that are part of the Vulkan graphics pipeline

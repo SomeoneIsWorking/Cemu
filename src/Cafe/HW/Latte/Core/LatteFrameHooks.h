@@ -66,12 +66,28 @@ namespace LatteFrameHooks
 	// whose vertex shader reads no uniforms at all positions its geometry from
 	// vertex data alone: nothing a uniform substitution writes can move it, so
 	// a runtime that blends uniforms counts these as the draws it cannot.
+	//
+	// Its vertex buffers are handed over as the guest memory the draw reads,
+	// up to the highest vertex and instance it fetches: whether that geometry
+	// moves is then a question of whether those bytes change between frames.
 	struct DrawPrepared
 	{
+		// One of a draw's vertex buffers, valid only during the callback.
+		struct VertexBuffer
+		{
+			const void* data;
+			uint32_t sizeInBytes;
+		};
+
+		// The attribute buffers a fetch shader can source.
+		static constexpr uint32_t kMaxVertexBuffers = 16;
+
 		uint64_t vertexShaderBaseHash;
 		uint64_t vertexShaderAuxHash;
 		bool vertexUniforms;
 		bool fromRuntime;
+		VertexBuffer vertexBuffers[kMaxVertexBuffers];
+		uint32_t vertexBufferCount;
 	};
 
 	// The nine arguments of the packet that copies a colour buffer to a scan

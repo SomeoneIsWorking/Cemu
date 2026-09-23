@@ -274,16 +274,7 @@ void LatteBufferCache_Sync(uint32 maxIndex, uint32 baseInstance, uint32 instance
 			}
 
 			// dont rely on buffer size given by game
-			uint32 fixedBufferSize = 0;
-			if (bufferGroup.hasVtxIndexAccess)
-				fixedBufferSize = bufferStride * (maxIndex + 1) + bufferGroup.maxOffset;
-			if (bufferGroup.hasInstanceIndexAccess)
-			{
-				uint32 fixedBufferSizeInstance = bufferStride * ((baseInstance + instanceCount) + 1) + bufferGroup.maxOffset;
-				fixedBufferSize = std::max(fixedBufferSize, fixedBufferSizeInstance);
-			}
-			if (fixedBufferSize == 0 || bufferStride == 0)
-				fixedBufferSize += 128;
+			uint32 fixedBufferSize = bufferGroup.getReadSize(bufferStride, maxIndex, baseInstance, instanceCount);
 
 
 #if BOOST_OS_MACOS && defined(ENABLE_VULKAN)
