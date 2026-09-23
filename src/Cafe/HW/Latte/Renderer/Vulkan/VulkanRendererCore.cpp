@@ -1376,6 +1376,19 @@ void VulkanRenderer::draw_beginSequence()
 		m_state.drawSequenceSkip = true;
 }
 
+namespace
+{
+	void NotifyDrawPrepared(const LatteDecompilerShader* vertexShader)
+	{
+		if (LatteFrameHooks::Observer* observer = LatteFrameHooks::GetObserver())
+		{
+			const bool vertexUniforms = vertexShader && vertexShader->resourceMapping.uniformVarsBufferBindingPoint >= 0;
+			observer->OnDrawPrepared({vertexShader ? vertexShader->baseHash : 0, vertexShader ? vertexShader->auxHash : 0,
+									  vertexUniforms, LatteFrameHooks::InRuntimeSubmission()});
+		}
+	}
+} // namespace
+
 void VulkanRenderer::draw_execute_first(uint32 baseVertex, uint32 baseInstance, uint32 instanceCount, uint32 count, MPTR indexDataMPTR, Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE indexType, const LatteDrawcallContext& drawcallContext)
 {
 	if (m_state.drawSequenceSkip)
@@ -1410,6 +1423,7 @@ void VulkanRenderer::draw_execute_first(uint32 baseVertex, uint32 baseInstance, 
 		uniformData_updateUniformVars(VulkanRendererConst::SHADER_STAGE_INDEX_FRAGMENT, pixelShader, s_vkUniformDataPS);
 	if (geometryShader)
 		uniformData_updateUniformVars(VulkanRendererConst::SHADER_STAGE_INDEX_GEOMETRY, geometryShader, s_vkUniformDataGS);
+	NotifyDrawPrepared(vertexShader);
 	// store where the read pointer should go after command buffer execution
 	m_cmdBufferUniformRingbufIndices[m_commandBufferIndex] = m_uniformVarBufferWriteIndex;
 
@@ -1578,6 +1592,7 @@ void VulkanRenderer::draw_execute_continued(uint32 baseVertex, uint32 baseInstan
 		uniformData_updateUniformVarsIncremental(VulkanRendererConst::SHADER_STAGE_INDEX_FRAGMENT, pixelShader, stageUniformModifiedMask, s_vkUniformDataPS, drawcallContext.aluConstPSDirty, drawcallContext.psUniformBufferDirtyMask);
 	if (geometryShader)
 		uniformData_updateUniformVarsIncremental(VulkanRendererConst::SHADER_STAGE_INDEX_GEOMETRY, geometryShader, stageUniformModifiedMask, s_vkUniformDataGS, false, drawcallContext.gsUniformBufferDirtyMask);
+	NotifyDrawPrepared(vertexShader);
 	// store where the read pointer should go after command buffer execution
 	m_cmdBufferUniformRingbufIndices[m_commandBufferIndex] = m_uniformVarBufferWriteIndex;
 

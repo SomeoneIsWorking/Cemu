@@ -62,6 +62,18 @@ namespace LatteFrameHooks
 		bool fromRuntime;
 	};
 
+	// One draw about to be issued, after its uniforms were assembled. A draw
+	// whose vertex shader reads no uniforms at all positions its geometry from
+	// vertex data alone: nothing a uniform substitution writes can move it, so
+	// a runtime that blends uniforms counts these as the draws it cannot.
+	struct DrawPrepared
+	{
+		uint64_t vertexShaderBaseHash;
+		uint64_t vertexShaderAuxHash;
+		bool vertexUniforms;
+		bool fromRuntime;
+	};
+
 	// The nine arguments of the packet that copies a colour buffer to a scan
 	// buffer, in the order the guest writes them. They are what a present is
 	// made of, so a first-party runtime that wants to present a frame of its
@@ -146,6 +158,9 @@ namespace LatteFrameHooks
 		// made of command buffers can only ever replay the first kind, so the
 		// split is the denominator for how much of a frame a replay is.
 		virtual void OnGuestDraw(bool fromCommandBuffer) = 0;
+		// Every draw the renderer issues, the title's or the runtime's, once its
+		// uniforms are assembled.
+		virtual void OnDrawPrepared(const DrawPrepared& draw) = 0;
 		// One per outermost runtime submission, after it has been processed.
 		virtual void OnRuntimeSubmission(const SubmissionSummary& summary) = 0;
 	};
