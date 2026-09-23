@@ -43,6 +43,9 @@ namespace LatteFrameHooks
 	// One shader's assembled uniform buffer, after both Latte uniform modes have
 	// converged on it. `data` is writable: this is the point where a transform is
 	// substituted, and it is the last point before the buffer is uploaded.
+	// UniformAssembly::stageIndex of a pixel shader's uniforms.
+	inline constexpr uint32_t kPixelStageIndex = 1;
+
 	struct UniformAssembly
 	{
 		uint64_t shaderBaseHash;
@@ -56,6 +59,10 @@ namespace LatteFrameHooks
 		// pairs, so the array holds twice that many words.
 		const uint32_t* blockAddresses;
 		uint32_t blockAddressCount;
+		// Whether the draw writes any colour buffer. One that writes depth
+		// alone renders a map a later draw of the frame looks up -- a shadow
+		// map -- rather than anything seen.
+		bool writesColour;
 		// As in DisplayList: whose draw this is. It is also the moment a
 		// substitution belongs to -- a blend edits the runtime's own replay
 		// and never the frame the guest is drawing.
