@@ -267,6 +267,20 @@ void VulkanRenderer::GetDeviceFeatures()
 	pwf.pNext = prevStruct;
 	prevStruct = &pwf;
 
+	VkPhysicalDevicePresentId2FeaturesKHR pid2f{};
+	VkPhysicalDevicePresentWait2FeaturesKHR pw2f{};
+	VkPhysicalDevicePresentTimingFeaturesEXT ptf{};
+	if (m_featureControl.deviceExtensions.present_timing)
+	{
+		pid2f.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_2_FEATURES_KHR;
+		pid2f.pNext = prevStruct;
+		pw2f.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_2_FEATURES_KHR;
+		pw2f.pNext = &pid2f;
+		ptf.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_TIMING_FEATURES_EXT;
+		ptf.pNext = &pw2f;
+		prevStruct = &ptf;
+	}
+
 	VkPhysicalDevicePipelineRobustnessFeaturesEXT pprf{};
 	if (m_featureControl.deviceExtensions.pipeline_robustness)
 	{
@@ -298,6 +312,9 @@ void VulkanRenderer::GetDeviceFeatures()
 	vkGetPhysicalDeviceFeatures2(m_physicalDevice, &physicalDeviceFeatures2);
 
 	cemuLog_log(LogType::Force, "Vulkan: present_wait extension: {}", (pwf.presentWait && pidf.presentId) ? "supported" : "unsupported");
+	m_featureControl.deviceExtensions.present_timing = m_featureControl.deviceExtensions.present_timing && m_featureControl.instanceExtensions.get_surface_capabilities2 &&
+		ptf.presentTiming && pid2f.presentId2 && pw2f.presentWait2;
+	cemuLog_log(LogType::Force, "Vulkan: present_timing extension: {}", m_featureControl.deviceExtensions.present_timing ? "supported" : "unsupported");
 
 	/* Get Vulkan device properties and limits */
 	VkPhysicalDeviceFloatControlsPropertiesKHR pfcp{};
@@ -722,6 +739,23 @@ VulkanRenderer::VulkanRenderer() : Renderer(RendererAPI::Vulkan)
 		presentWaitFeature.pNext = deviceExtensionFeatures;
 		deviceExtensionFeatures = &presentWaitFeature;
 		presentWaitFeature.presentWait = VK_TRUE;
+	}
+	// enable VK_EXT_present_timing and the present ids and waits it reports by
+	VkPhysicalDevicePresentId2FeaturesKHR presentId2Feature{};
+	VkPhysicalDevicePresentWait2FeaturesKHR presentWait2Feature{};
+	VkPhysicalDevicePresentTimingFeaturesEXT presentTimingFeature{};
+	if (m_featureControl.deviceExtensions.present_timing)
+	{
+		presentId2Feature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_2_FEATURES_KHR;
+		presentId2Feature.pNext = deviceExtensionFeatures;
+		presentId2Feature.presentId2 = VK_TRUE;
+		presentWait2Feature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_2_FEATURES_KHR;
+		presentWait2Feature.pNext = &presentId2Feature;
+		presentWait2Feature.presentWait2 = VK_TRUE;
+		presentTimingFeature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_TIMING_FEATURES_EXT;
+		presentTimingFeature.pNext = &presentWait2Feature;
+		presentTimingFeature.presentTiming = VK_TRUE;
+		deviceExtensionFeatures = &presentTimingFeature;
 	}
 	// enable VK_EXT_pipeline_robustness
 	VkPhysicalDevicePipelineRobustnessFeaturesEXT pipelineRobustnessFeature{};
@@ -1330,6 +1364,13 @@ VkDeviceCreateInfo VulkanRenderer::CreateDeviceCreateInfo(const std::vector<VkDe
 		used_extensions.emplace_back(VK_KHR_PRESENT_ID_EXTENSION_NAME);
 		used_extensions.emplace_back(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
 	}
+	if (m_featureControl.deviceExtensions.present_timing)
+	{
+		used_extensions.emplace_back(VK_EXT_PRESENT_TIMING_EXTENSION_NAME);
+		used_extensions.emplace_back(VK_KHR_PRESENT_ID_2_EXTENSION_NAME);
+		used_extensions.emplace_back(VK_KHR_PRESENT_WAIT_2_EXTENSION_NAME);
+		used_extensions.emplace_back(VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
+	}
 	if (m_featureControl.deviceExtensions.pipeline_robustness)
 		used_extensions.emplace_back(VK_EXT_PIPELINE_ROBUSTNESS_EXTENSION_NAME);
 	if (UseAttachmentFeedbackLoop())
@@ -1438,6 +1479,8 @@ bool VulkanRenderer::CheckDeviceExtensionSupport(const VkPhysicalDevice device, 
 	info.deviceExtensions.attachment_feedback_loop_dynamic_state = isExtensionAvailable(VK_EXT_ATTACHMENT_FEEDBACK_LOOP_DYNAMIC_STATE_EXTENSION_NAME);
 	// dynamic rendering doesn't provide any benefits for us right now. Driver implementations are very unoptimized as of Feb 2022
 	info.deviceExtensions.present_wait = isExtensionAvailable(VK_KHR_PRESENT_WAIT_EXTENSION_NAME) && isExtensionAvailable(VK_KHR_PRESENT_ID_EXTENSION_NAME);
+	info.deviceExtensions.present_timing = isExtensionAvailable(VK_EXT_PRESENT_TIMING_EXTENSION_NAME) && isExtensionAvailable(VK_KHR_PRESENT_ID_2_EXTENSION_NAME) &&
+		isExtensionAvailable(VK_KHR_PRESENT_WAIT_2_EXTENSION_NAME) && isExtensionAvailable(VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
 
 	// check for validation layers and frame debuggers
 	info.usingDebugMarkerTool = false;
@@ -1535,6 +1578,9 @@ std::vector<const char*> VulkanRenderer::CheckInstanceExtensionSupport(FeatureCo
 	info.instanceExtensions.debug_utils = isExtensionAvailable(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 	if (info.instanceExtensions.debug_utils)
 		enabledInstanceExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+	info.instanceExtensions.get_surface_capabilities2 = isExtensionAvailable(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME);
+	if (info.instanceExtensions.get_surface_capabilities2)
+		enabledInstanceExtensions.emplace_back(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME);
 	return enabledInstanceExtensions;
 }
 
@@ -3066,19 +3112,29 @@ void VulkanRenderer::SwapBuffer(bool mainWindow)
 	presentInfo.waitSemaphoreCount = 1;
 	presentInfo.pWaitSemaphores = &presentSemaphore;
 
+	// a timed swapchain marks every present, to be told when it was shown
+	PresentTimingVk& timing = chainInfo.m_presentTiming;
+	if (timing.IsActive())
+		timing.Chain(presentInfo, chainInfo.m_presentId);
 	// if present_wait is available and enabled, add frame markers to present requests
 	// and limit the number of queued present operations
-	if (m_featureControl.deviceExtensions.present_wait && chainInfo.m_maxQueued > 0)
+	const bool limitQueued = (m_featureControl.deviceExtensions.present_wait || timing.IsActive()) && chainInfo.m_maxQueued > 0;
+	if (limitQueued)
 	{
-		presentId.sType = VK_STRUCTURE_TYPE_PRESENT_ID_KHR;
-		presentId.swapchainCount = 1;
-		presentId.pPresentIds = &chainInfo.m_presentId;
-
-		presentInfo.pNext = &presentId;
+		if (!timing.IsActive())
+		{
+			presentId.sType = VK_STRUCTURE_TYPE_PRESENT_ID_KHR;
+			presentId.swapchainCount = 1;
+			presentId.pPresentIds = &chainInfo.m_presentId;
+			presentInfo.pNext = &presentId;
+		}
 
 		while (!runtimePresent && chainInfo.m_queuedTitlePresentIds.size() >= chainInfo.m_maxQueued)
 		{
-			vkWaitForPresentKHR(m_logicalDevice, chainInfo.m_swapchain, chainInfo.m_queuedTitlePresentIds.front(), 40'000'000);
+			if (timing.IsActive())
+				timing.WaitForPresent(chainInfo.m_queuedTitlePresentIds.front(), 40'000'000);
+			else
+				vkWaitForPresentKHR(m_logicalDevice, chainInfo.m_swapchain, chainInfo.m_queuedTitlePresentIds.front(), 40'000'000);
 			chainInfo.m_queuedTitlePresentIds.pop_front();
 		}
 	}
@@ -3095,8 +3151,11 @@ void VulkanRenderer::SwapBuffer(bool mainWindow)
 	{
 		if (!runtimePresent)
 			chainInfo.m_queuedTitlePresentIds.push_back(chainInfo.m_presentId);
+		if (timing.IsActive())
+			timing.Presented(chainInfo.m_presentId, runtimePresent);
 		chainInfo.m_presentId++;
 	}
+	timing.Collect();
 
 	chainInfo.hasDefinedSwapchainImage = false;
 

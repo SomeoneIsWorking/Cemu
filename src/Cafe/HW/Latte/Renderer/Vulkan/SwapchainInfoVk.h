@@ -1,6 +1,7 @@
 #pragma once
 
 #include "util/math/vector2.h"
+#include "Cafe/HW/Latte/Renderer/Vulkan/PresentTimingVk.h"
 #include <vulkan/vulkan_core.h>
 #include <deque>
 
@@ -79,6 +80,9 @@ struct SwapchainInfoVk
 	// title's own present behind a vblank (LatteFrameHooks::SubmitPresent).
 	std::deque<uint64> m_queuedTitlePresentIds;
 	uint64 m_maxQueued = 0; // the maximum number of frames with presentation requests.
+	// When the main window's presents reached the screen, where its surface
+	// reports it.
+	PresentTimingVk m_presentTiming;
 
 
 	// swapchain image ringbuffer (indexed by swapchainImageIndex)

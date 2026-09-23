@@ -476,6 +476,7 @@ private:
 			bool dynamic_rendering = false; // VK_KHR_dynamic_rendering
 			bool shader_float_controls = false; // VK_KHR_shader_float_controls
 			bool present_wait = false; // VK_KHR_present_wait
+			bool present_timing = false; // VK_EXT_present_timing, with the present_id2, present_wait2 and calibrated_timestamps it needs
 			bool depth_clip_enable = false; // VK_EXT_depth_clip_enable
 			bool pipeline_robustness = false; // VK_EXT_pipeline_robustness
 			bool attachment_feedback_loop_layout = false; // VK_EXT_attachment_feedback_loop_layout
@@ -490,6 +491,7 @@ private:
 		struct
 		{
 			bool debug_utils = false; // VK_EXT_DEBUG_UTILS
+			bool get_surface_capabilities2 = false; // VK_KHR_get_surface_capabilities2
 		}instanceExtensions;
 
 		struct
@@ -972,6 +974,7 @@ public:
 	bool IsDebugMarkersEnabled() const { return m_featureControl.usingDebugMarkerTool; }
 	bool IsTracingToolEnabled() const { return m_featureControl.usingTracingTool; }
 	bool UseAttachmentFeedbackLoop() const { return m_featureControl.deviceExtensions.attachment_feedback_loop_dynamic_state; }
+	bool SupportsPresentTiming() const { return m_featureControl.deviceExtensions.present_timing; }
 
 private:
 

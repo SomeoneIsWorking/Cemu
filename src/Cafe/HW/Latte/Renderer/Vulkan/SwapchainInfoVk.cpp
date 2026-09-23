@@ -42,10 +42,17 @@ void SwapchainInfoVk::Create()
 	VkSwapchainCreateInfoKHR create_info = CreateSwapchainCreateInfo(m_surface, details, m_surfaceFormat, image_count, m_actualExtent);
 	create_info.oldSwapchain = nullptr;
 	create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	const std::optional<LatteFrameHooks::ShownStage> shownStage =
+		mainWindow ? PresentTimingVk::Query(m_physicalDevice, m_surface, VulkanRenderer::GetInstance()->SupportsPresentTiming()) : std::nullopt;
+	if (shownStage.has_value())
+		create_info.flags |= PresentTimingVk::CreateFlags();
 
 	VkResult result = vkCreateSwapchainKHR(m_logicalDevice, &create_info, nullptr, &m_swapchain);
 	if (result != VK_SUCCESS)
 		UnrecoverableError("Error attempting to create a swapchain");
+	if (shownStage.has_value())
+		m_presentTiming.Start(m_logicalDevice, m_swapchain, *shownStage);
+	cemuLog_log(LogType::Force, "Vulkan: shown times {}", m_presentTiming.IsActive() ? "reported" : "not reported by this surface");
 
 	result = vkGetSwapchainImagesKHR(m_logicalDevice, m_swapchain, &image_count, nullptr);
 	if (result != VK_SUCCESS)
@@ -192,6 +199,7 @@ void SwapchainInfoVk::Cleanup()
 		vkDestroyFence(m_logicalDevice, m_imageAvailableFence, nullptr);
 		m_imageAvailableFence = nullptr;
 	}
+	m_presentTiming.Stop();
 	if (m_swapchain)
 	{
 		vkDestroySwapchainKHR(m_logicalDevice, m_swapchain, nullptr);

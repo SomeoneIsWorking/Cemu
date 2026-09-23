@@ -532,6 +532,8 @@ if (ENABLE_VULKAN)
     HW/Latte/Renderer/Vulkan/LatteTextureVk.h
     HW/Latte/Renderer/Vulkan/RendererShaderVk.cpp
     HW/Latte/Renderer/Vulkan/RendererShaderVk.h
+    HW/Latte/Renderer/Vulkan/PresentTimingVk.cpp
+    HW/Latte/Renderer/Vulkan/PresentTimingVk.h
     HW/Latte/Renderer/Vulkan/SwapchainInfoVk.cpp
     HW/Latte/Renderer/Vulkan/SwapchainInfoVk.h
     HW/Latte/Renderer/Vulkan/TextureReadbackVk.cpp

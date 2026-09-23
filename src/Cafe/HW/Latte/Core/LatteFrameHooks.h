@@ -194,6 +194,32 @@ namespace LatteFrameHooks
 		uint32_t withheld[kWithheldEffectCount]{};
 	};
 
+	// How far along its way to the screen a shown frame's time was taken, as
+	// far as the surface can report it: the later, the nearer what a player
+	// sees.
+	enum class ShownStage : uint8_t
+	{
+		// The GPU finished the present's queue operations.
+		QueueDone,
+		// The presentation engine took the image to be shown.
+		Dequeued,
+		// Its first pixel left for the display.
+		FirstPixelOut,
+		// Its first pixel was visible on the display.
+		FirstPixelVisible,
+	};
+
+	// A frame handed to the display, and when it reached the screen.
+	struct ShownFrame
+	{
+		bool fromRuntime;
+		ShownStage stage;
+		// In nanoseconds of the clock `timeDomainId` names: times of two
+		// frames of the same domain can be subtracted, others not.
+		uint64_t timeNanoseconds;
+		uint64_t timeDomainId;
+	};
+
 	class Observer
 	{
 	  public:
@@ -214,6 +240,12 @@ namespace LatteFrameHooks
 		// the frame time a player sees, which the guest's swaps alone stop
 		// describing once the runtime shows frames of its own.
 		virtual void OnDisplayed(bool fromRuntime) = 0;
+		// When a frame handed to the display was shown, as the presentation
+		// engine reports it, a few frames after its present: what the player
+		// sees, which OnDisplayed's times are not once a present returns
+		// before its frame is shown. Only a surface that reports presentation
+		// times (VK_EXT_present_timing) calls it, once per frame, in order.
+		virtual void OnShown(const ShownFrame& shown) = 0;
 		// Every draw the title issues, and whether it came out of a command
 		// buffer the recorder was shown or straight from the ring. A recording
 		// made of command buffers can only ever replay the first kind, so the

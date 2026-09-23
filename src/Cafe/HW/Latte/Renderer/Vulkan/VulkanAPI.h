@@ -78,6 +78,7 @@ VKFUNC_DEVICE(vkGetDeviceQueue);
 VKFUNC_INSTANCE(vkGetPhysicalDeviceQueueFamilyProperties);
 VKFUNC_INSTANCE(vkGetPhysicalDeviceSurfaceSupportKHR);
 VKFUNC_INSTANCE(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
+VKFUNC_INSTANCE(vkGetPhysicalDeviceSurfaceCapabilities2KHR);
 VKFUNC_INSTANCE(vkGetPhysicalDeviceSurfaceFormatsKHR);
 VKFUNC_INSTANCE(vkGetPhysicalDeviceSurfacePresentModesKHR);
 VKFUNC_INSTANCE(vkGetPhysicalDeviceMemoryProperties);
@@ -194,6 +195,11 @@ VKFUNC_DEVICE(vkCmdSetAttachmentFeedbackLoopEnableEXT);
 
 // khr_present_wait
 VKFUNC_DEVICE(vkWaitForPresentKHR);
+
+// khr_present_wait2, ext_present_timing
+VKFUNC_DEVICE(vkWaitForPresent2KHR);
+VKFUNC_DEVICE(vkSetSwapchainPresentTimingQueueSizeEXT);
+VKFUNC_DEVICE(vkGetPastPresentationTimingEXT);
 
 // query
 VKFUNC_DEVICE(vkCreateQueryPool);
