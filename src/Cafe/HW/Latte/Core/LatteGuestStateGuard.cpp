@@ -45,6 +45,7 @@ namespace LatteGuestStateGuard
 			std::unordered_set<Subresource, SubresourceHash> keptSet;
 			std::unordered_set<LatteTexture*> created;
 			uint32_t uncopied = 0;
+			uint32_t shadowsCreated = 0;
 			uint32_t streamoutWrites = 0;
 		};
 
@@ -63,6 +64,7 @@ namespace LatteGuestStateGuard
 			{
 				return nullptr;
 			}
+			++s_guard.shadowsCreated;
 			return s_guard.shadows.emplace(subresource, std::move(shadow)).first->second.get();
 		}
 	} // namespace
@@ -75,6 +77,7 @@ namespace LatteGuestStateGuard
 		s_guard.keptSet.clear();
 		s_guard.created.clear();
 		s_guard.uncopied = 0;
+		s_guard.shadowsCreated = 0;
 		s_guard.streamoutWrites = 0;
 	}
 
@@ -89,6 +92,7 @@ namespace LatteGuestStateGuard
 			++restore.subresourcesRestored;
 		}
 		restore.subresourcesUncopied = s_guard.uncopied;
+		restore.shadowsCreated = s_guard.shadowsCreated;
 		restore.texturesCreated = static_cast<uint32_t>(s_guard.created.size());
 		restore.streamoutWrites = s_guard.streamoutWrites;
 		s_guard.open = false;

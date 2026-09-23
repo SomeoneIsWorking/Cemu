@@ -245,6 +245,9 @@ namespace LatteFrameHooks
 	struct GuestStateRestore
 	{
 		uint32_t subresourcesRestored;
+		// Copies allocated by this guard rather than reused from an earlier
+		// one: a steady frame allocates none.
+		uint32_t shadowsCreated;
 		// Written, but the renderer keeps no copies (only Vulkan does).
 		uint32_t subresourcesUncopied;
 		// Created while guarded: their contents were never the guest's, so
