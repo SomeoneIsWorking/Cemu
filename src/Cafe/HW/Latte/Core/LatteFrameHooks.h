@@ -64,6 +64,9 @@ namespace LatteFrameHooks
 		// alone renders a map a later draw of the frame looks up -- a shadow
 		// map -- rather than anything seen.
 		bool writesColour;
+		// Whether this stage compares against a depth texture -- looks up a
+		// map such as the light's, which the frame drew before this draw.
+		bool looksUpDepthMap;
 		// As in DisplayList: whose draw this is. It is also the moment a
 		// substitution belongs to -- a blend edits the runtime's own replay
 		// and never the frame the guest is drawing.

@@ -376,6 +376,18 @@ uint32 VulkanRenderer::uniformData_uploadUniformDataBufferGetOffset(std::span<ui
 	return uniformOffset;
 }
 
+// Whether a stage compares against a depth texture: it looks up a map, such as
+// the light's, that the frame rendered before it (LatteFrameHooks::UniformAssembly).
+static bool looksUpDepthMap(const LatteDecompilerShader* shader)
+{
+	for (bool usesDepthCompare : shader->textureUsesDepthCompare)
+	{
+		if (usesDepthCompare)
+			return true;
+	}
+	return false;
+}
+
 void VulkanRenderer::uniformData_updateUniformVars(uint32 shaderStageIndex, LatteDecompilerShader* shader, float* __restrict uniformBuf)
 {
 	auto GET_UNIFORM_DATA_PTR = [&uniformBuf](size_t index) { return uniformBuf + (index / 4); };
@@ -459,7 +471,7 @@ void VulkanRenderer::uniformData_updateUniformVars(uint32 shaderStageIndex, Latt
 		const bool writesColour = LatteMRT::GetActiveColorBufferMask(LatteSHRC_GetActivePixelShader(), LatteGPUState.contextNew) != 0;
 		observer->OnUniformAssembly({shader->baseHash, shader->auxHash, shaderStageIndex,
 									 uniformBuf, shader->uniform.uniformRangeSize, blockSources,
-									 blockSourceCount, writesColour, LatteFrameHooks::InRuntimeSubmission()});
+									 blockSourceCount, writesColour, looksUpDepthMap(shader), LatteFrameHooks::InRuntimeSubmission()});
 	}
 	dynamicOffsetInfo.uniformVarBufferOffset[shaderStageIndex] = uniformData_uploadUniformDataBufferGetOffset({(uint8*)uniformBuf, shader->uniform.uniformRangeSize});
 }
@@ -517,7 +529,7 @@ void VulkanRenderer::uniformData_updateUniformVarsIncremental(uint32 shaderStage
 			const bool writesColour = LatteMRT::GetActiveColorBufferMask(LatteSHRC_GetActivePixelShader(), LatteGPUState.contextNew) != 0;
 			observer->OnUniformAssembly({shader->baseHash, shader->auxHash, shaderStageIndex,
 										 uniformBuf, shader->uniform.uniformRangeSize, blockSources,
-										 blockSourceCount, writesColour, LatteFrameHooks::InRuntimeSubmission()});
+										 blockSourceCount, writesColour, looksUpDepthMap(shader), LatteFrameHooks::InRuntimeSubmission()});
 		}
 		dynamicOffsetInfo.uniformVarBufferOffset[shaderStageIndex] = uniformData_uploadUniformDataBufferGetOffset({(uint8*)uniformBuf, shader->uniform.uniformRangeSize});
 		stageUniformModifiedMask |= (1 << shaderStageIndex);
