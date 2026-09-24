@@ -182,6 +182,18 @@ void CafeTitleList::Refresh()
 	sTLIsScanMandatory = false;
 }
 
+void CafeTitleList::Shutdown()
+{
+	// the worker takes sTLMutex itself, so it is joined outside the lock
+	std::thread worker;
+	{
+		std::unique_lock _lock(sTLMutex);
+		worker = std::move(sTLRefreshWorker);
+	}
+	if (worker.joinable())
+		worker.join();
+}
+
 bool CafeTitleList::IsScanning()
 {
 	std::unique_lock _lock(sTLMutex);

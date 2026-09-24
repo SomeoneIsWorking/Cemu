@@ -9,4 +9,13 @@
 namespace SystemBringup
 {
 	void Run();
+
+	// Ends a process with the given exit code. After Run, it first stops what
+	// can be stopped -- the title list's scan worker, the Cafe system's IOSU
+	// services and the input manager's update thread -- and flushes the log,
+	// then leaves without running static destructors: the legacy IOSU threads
+	// are detached loops with no way to stop them, and destroying the globals
+	// they wait on hangs the exit. The wx front end ends the same way, with
+	// _Exit from its OnExit. Without Run it simply exits.
+	[[noreturn]] void Exit(int code);
 } // namespace SystemBringup

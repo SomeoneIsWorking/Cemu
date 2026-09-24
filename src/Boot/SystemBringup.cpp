@@ -14,6 +14,8 @@
 #include "util/crypto/aes128.h"
 #include "util/helpers/helpers.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <future>
 
 #if BOOST_OS_WINDOWS
@@ -27,6 +29,9 @@ namespace fs = std::filesystem;
 // Some implementations of _putenv keep the pointer rather than the string, so
 // the strings handed to it have to outlive the call.
 static std::vector<std::string*> sPutEnvMap;
+
+// Whether Run has brought the system up, and Exit must take it down.
+static bool sRan = false;
 
 void _putenvSafe(const char* c)
 {
@@ -67,6 +72,7 @@ void reconfigureVkDrivers()
 
 void SystemBringup::Run()
 {
+	sRan = true;
 	reconfigureGLDrivers();
 	reconfigureVkDrivers();
 	// crypto init
@@ -103,4 +109,18 @@ void SystemBringup::Run()
 		CafeSaveList::SetMLCPath(mlcPath);
 		CafeSaveList::Refresh();
 	}
+}
+
+void SystemBringup::Exit(int code)
+{
+	if (sRan)
+	{
+		CafeTitleList::Shutdown();
+		CafeSystem::Shutdown();
+		InputManager::instance().Shutdown();
+		cemuLog_waitForFlush();
+		std::fflush(nullptr);
+		std::_Exit(code);
+	}
+	std::exit(code);
 }
