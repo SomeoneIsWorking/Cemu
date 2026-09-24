@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <vector>
 
 // The points at which first-party code observes and substitutes, and nothing
 // else.
@@ -386,6 +387,20 @@ namespace LatteFrameHooks
 	// no-op: a replay that quietly drew nothing is indistinguishable from one
 	// that worked.
 	bool SubmitDisplayList(const void* data, uint32_t sizeInBytes);
+
+	// One span of guest memory the emulator has mapped: where it sits in the
+	// guest's address space, and where its bytes are on the host.
+	struct GuestMemoryRegion
+	{
+		uint32_t guestAddress;
+		const uint8_t* bytes;
+		uint32_t size;
+	};
+
+	// Every span of guest memory mapped now, for a diagnostic that must see
+	// whether the runtime changed anything the guest can read. The bytes are
+	// written by the guest's own threads while they run.
+	std::vector<GuestMemoryRegion> MappedGuestMemory();
 
 	// Null until something registers. Callers check it rather than paying a
 	// virtual call per draw for a hook nobody installed.

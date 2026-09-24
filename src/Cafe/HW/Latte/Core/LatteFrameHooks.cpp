@@ -3,6 +3,7 @@
 #include "Cafe/HW/Latte/Core/LatteGuestStateGuard.h"
 #include "Cafe/HW/Latte/Core/LattePM4.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
+#include "Cafe/HW/MMU/MMU.h"
 
 #include <array>
 #include <vector>
@@ -256,6 +257,19 @@ namespace LatteFrameHooks
 	GuestStateRestore RestoreGuestState()
 	{
 		return LatteGuestStateGuard::Close();
+	}
+
+	std::vector<GuestMemoryRegion> MappedGuestMemory()
+	{
+		std::vector<GuestMemoryRegion> regions;
+		for (const MMURange* range : memory_getMMURanges())
+		{
+			if (range->isMapped() && range->getSize() > 0)
+			{
+				regions.push_back({range->getBase(), range->getPtr(), range->getSize()});
+			}
+		}
+		return regions;
 	}
 
 } // namespace LatteFrameHooks
