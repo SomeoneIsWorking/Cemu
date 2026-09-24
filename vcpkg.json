@@ -49,13 +49,6 @@
       "default-features": false
     },
     "zstd",
-    {
-      "name": "wxwidgets",
-      "default-features": false,
-      "features": [
-        "debug-support"
-      ]
-    },
     "openssl",
     {
       "name": "curl",
@@ -79,6 +72,35 @@
     },
     "libusb"
   ],
+  "features": {
+    "wxwidgets": {
+      "description": "The wxWidgets front end (ENABLE_WXWIDGETS)",
+      "dependencies": [
+        {
+          "name": "wxwidgets",
+          "default-features": false,
+          "features": [
+            "debug-support"
+          ]
+        }
+      ]
+    },
+    "sdl-wayland": {
+      "description": "SDL's Wayland backend, for a build without the wxWidgets front end",
+      "dependencies": [
+        {
+          "name": "sdl3",
+          "default-features": false,
+          "features": [
+            {
+              "name": "wayland",
+              "platform": "linux"
+            }
+          ]
+        }
+      ]
+    }
+  },
   "overrides": [
     {
       "name": "glslang",

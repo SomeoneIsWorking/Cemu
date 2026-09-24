@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.21.1)
 option(ENABLE_VCPKG "Enable the vcpkg package manager" ON)
 option(MACOS_BUNDLE "The executable when built on macOS will be created as an application bundle" OFF)
 option(ALLOW_PORTABLE "Allow Cemu to be run in portable mode" ON)
+option(ENABLE_WXWIDGETS "Build with wxWidgets UI (Currently required)" ON)
 
 # used by CI script to set version:
 set(EMULATOR_VERSION_MAJOR "0" CACHE STRING "")
@@ -44,6 +45,14 @@ if (ENABLE_VCPKG)
 		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_mac;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
 	else()
 		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_win;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
+	endif()
+	# wxWidgets and SDL's Wayland backend each embed the generated
+	# wp_pointer_warp_v1 protocol stubs, so one executable cannot link both.
+	# A build takes the wx front end or SDL on Wayland, never the pair.
+	if(ENABLE_WXWIDGETS)
+		list(APPEND VCPKG_MANIFEST_FEATURES "wxwidgets")
+	elseif(UNIX AND NOT APPLE)
+		list(APPEND VCPKG_MANIFEST_FEATURES "sdl-wayland")
 	endif()
 	set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/vcpkg/scripts/buildsystems/vcpkg.cmake"
 		CACHE STRING "Vcpkg toolchain file")
@@ -147,8 +156,6 @@ if (WIN32)
 endif()
 option(ENABLE_CUBEB "Enabled cubeb backend" ON)
 
-option(ENABLE_WXWIDGETS "Build with wxWidgets UI (Currently required)" ON)
-
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
 find_package(pugixml REQUIRED)
@@ -188,7 +195,10 @@ if (UNIX AND NOT APPLE)
 		target_include_directories(CemuWaylandProtocols PRIVATE ${Wayland_INCLUDE_DIRS})
 		add_compile_definitions(HAS_WAYLAND)
 	endif()
-	find_package(GTK3 REQUIRED)
+	if (ENABLE_WXWIDGETS)
+		# The wx front end's own toolkit; nothing else links it.
+		find_package(GTK3 REQUIRED)
+	endif()
 
 	if(ENABLE_BLUEZ)
 		find_package(bluez REQUIRED)
