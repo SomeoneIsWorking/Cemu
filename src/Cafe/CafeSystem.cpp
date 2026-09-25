@@ -41,6 +41,7 @@
 // IOSU initializer functions
 #include "Cafe/IOSU/kernel/iosu_kernel.h"
 #include "Cafe/IOSU/fsa/iosu_fsa.h"
+#include "Cafe/HW/Espresso/GuestCallProbes.h"
 #include "Cafe/IOSU/ODM/iosu_odm.h"
 
 // Cafe OS initializer and shutdown functions
@@ -410,6 +411,8 @@ void cemu_initForGame()
 	{
 		// replace any known function signatures with our HLE implementations and patch bugs in the games
 		GamePatch_scan();
+		// after the title is linked and patched, before any of its code runs
+		GuestCallProbes::InstallRegistered();
 	}
 	LatteGPUState.isDRCPrimary = ActiveSettings::DisplayDRCEnabled();
 	InfoLog_PrintActiveSettings();
