@@ -7,9 +7,11 @@
 // they do.
 //
 // A function registered here has its first instruction replaced, once the
-// title is linked and before any of its code runs, by an absolute branch to
-// a stub: an HLE call that tells the probe the caller's registers, the
-// instruction it displaced, and a branch back to the instruction after it.
+// title is linked and before any of its code runs, by a branch to a stub:
+// an HLE call that tells the probe the caller's registers, the instruction
+// it displaced, and a branch back to the instruction after it. The stub
+// touches no register, so any first instruction but a relative branch runs
+// from it as it did in place.
 // Nothing else is patched, so a registration whose entry does not hold the
 // instruction it names, or holds one that cannot run elsewhere, is refused
 // and left alone. With nothing registered this is a no-op and the build
@@ -27,7 +29,7 @@ namespace GuestCallProbes
 		// The entry's instruction branches relative to where it stands, so it
 		// cannot run from the stub. Left as it was.
 		EntryNotRelocatable,
-		// No code space for the stub within an absolute branch's reach.
+		// No code space for the stub within a branch's reach of the function.
 		NoCodeSpace,
 	};
 
@@ -39,8 +41,10 @@ namespace GuestCallProbes
 		virtual void OnInstall(Installation installation) = 0;
 		// Each call into the function, on the calling guest thread, before
 		// its first instruction runs; `gpr` are the caller's integer
-		// registers. Must not change guest state.
-		virtual void OnCall(std::span<const uint32_t, 32> gpr) = 0;
+		// registers and `returnAddress` the link register -- the instruction
+		// after the call that entered it, naming the call site when it was
+		// entered by one. Must not change guest state.
+		virtual void OnCall(std::span<const uint32_t, 32> gpr, uint32_t returnAddress) = 0;
 	};
 
 	// Registers `probe` for the function at guest address `entry`, whose

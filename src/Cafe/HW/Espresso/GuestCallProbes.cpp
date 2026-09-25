@@ -23,10 +23,9 @@ namespace GuestCallProbes
 		// guest threads that dispatch read it without a lock.
 		std::vector<Registration> s_registrations;
 
-		constexpr uint32_t kStubInstructions = 6;
-		constexpr uint32_t kGpr12 = 12;
-		// An absolute branch reaches the first 32 MiB of the address space.
-		constexpr uint32_t kAbsoluteBranchReach = 0x02000000;
+		constexpr uint32_t kStubInstructions = 3;
+		// A relative branch reaches 32 MiB either side of where it stands.
+		constexpr int64_t kRelativeBranchReach = 0x02000000;
 		constexpr uint32_t kPrimaryBranchConditional = 16;
 		constexpr uint32_t kPrimaryBranch = 18;
 
@@ -36,26 +35,35 @@ namespace GuestCallProbes
 			{
 				if (registration.stubAddress == cpu->instructionPointer)
 				{
-					registration.probe->OnCall(std::span<const uint32_t, 32>(cpu->gpr, 32));
+					registration.probe->OnCall(std::span<const uint32_t, 32>(cpu->gpr, 32), cpu->spr.LR);
 					break;
 				}
 			}
 			PPCInterpreter_nextInstruction(cpu);
 		}
 
-		// The HLE call, the displaced instruction, then
-		// `lis r12, hi; ori r12, r12, lo; mtctr r12; bctr` back into the
-		// function: r12 and ctr are volatile across a call, so a function
-		// entered by one reads neither before writing it.
+		bool WithinRelativeBranch(uint32_t from, uint32_t to)
+		{
+			int64_t displacement = static_cast<int64_t>(to) - static_cast<int64_t>(from);
+			return displacement >= -kRelativeBranchReach && displacement < kRelativeBranchReach;
+		}
+
+		// `b to`, standing at `from`.
+		uint32_t RelativeBranch(uint32_t from, uint32_t to)
+		{
+			return (kPrimaryBranch << 26) | ((to - from) & 0x03FFFFFCu);
+		}
+
+		// The HLE call, the displaced instruction, then a branch back into the
+		// function: no register is touched, so the function runs as if called
+		// directly.
 		void WriteStub(uint32_t stubAddress, HLEIDX hleIndex, uint32_t displaced, uint32_t resume)
 		{
+			uint32_t back = stubAddress + (kStubInstructions - 1) * 4;
 			const uint32_t instructions[kStubInstructions] = {
 				(1u << 26) | static_cast<uint32_t>(hleIndex),
 				displaced,
-				(15u << 26) | (kGpr12 << 21) | (resume >> 16),
-				(24u << 26) | (kGpr12 << 21) | (kGpr12 << 16) | (resume & 0xFFFFu),
-				0x7D8903A6u,
-				0x4E800420u,
+				RelativeBranch(back, resume),
 			};
 			for (uint32_t i = 0; i < kStubInstructions; i++)
 			{
@@ -80,14 +88,15 @@ namespace GuestCallProbes
 				return Installation::NoCodeSpace;
 			}
 			uint32_t stubAddress = memory_getVirtualOffsetFromPointer(stub);
-			if (stubAddress + kStubInstructions * 4 > kAbsoluteBranchReach)
+			uint32_t resume = registration.entry + 4;
+			if (!WithinRelativeBranch(registration.entry, stubAddress) ||
+				!WithinRelativeBranch(stubAddress + (kStubInstructions - 1) * 4, resume))
 			{
 				return Installation::NoCodeSpace;
 			}
 			registration.stubAddress = stubAddress;
-			WriteStub(stubAddress, hleIndex, registration.firstInstruction, registration.entry + 4);
-			// `ba stub`
-			memory_writeU32(registration.entry, (kPrimaryBranch << 26) | stubAddress | 2u);
+			WriteStub(stubAddress, hleIndex, registration.firstInstruction, resume);
+			memory_writeU32(registration.entry, RelativeBranch(registration.entry, stubAddress));
 			return Installation::Installed;
 		}
 	} // namespace
