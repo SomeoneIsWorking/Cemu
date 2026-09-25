@@ -3,45 +3,50 @@
 #include <cstdint>
 #include <span>
 
-// Observes calls the title makes through a function pointer it keeps in
-// memory -- a vtable slot -- without changing what they do.
+// Observes calls into one of the title's functions without changing what
+// they do.
 //
-// A slot registered here is pointed, once the title is linked and before any
-// of its code runs, at a stub of four guest instructions after an HLE call:
-// the call tells the probe the caller's registers, then the stub branches to
-// the target the slot held. Nothing else is patched, so a registration whose
-// slot does not hold the target it names is refused and left alone. With
-// nothing registered this is a no-op and the build behaves as upstream.
+// A function registered here has its first instruction replaced, once the
+// title is linked and before any of its code runs, by an absolute branch to
+// a stub: an HLE call that tells the probe the caller's registers, the
+// instruction it displaced, and a branch back to the instruction after it.
+// Nothing else is patched, so a registration whose entry does not hold the
+// instruction it names, or holds one that cannot run elsewhere, is refused
+// and left alone. With nothing registered this is a no-op and the build
+// behaves as upstream.
 namespace GuestCallProbes
 {
 	// How a registration ended when the title was linked.
 	enum class Installation
 	{
-		// The slot now calls through the probe.
+		// Calls into the function now pass through the probe.
 		Installed,
-		// The slot held another target: another executable, or another
+		// The entry held another instruction: another executable, or another
 		// revision of it. Left as it was.
-		SlotHeldOther,
-		// No code space for the stub, or every HLE index taken.
+		EntryHeldOther,
+		// The entry's instruction branches relative to where it stands, so it
+		// cannot run from the stub. Left as it was.
+		EntryNotRelocatable,
+		// No code space for the stub within an absolute branch's reach.
 		NoCodeSpace,
 	};
 
 	class Probe
 	{
-	public:
+	  public:
 		virtual ~Probe() = default;
 		// Once, on the thread that links the title, before its code runs.
 		virtual void OnInstall(Installation installation) = 0;
-		// Each call through the slot, on the calling guest thread, before
-		// the target runs; `gpr` are the caller's integer registers. Must not
-		// change guest state.
+		// Each call into the function, on the calling guest thread, before
+		// its first instruction runs; `gpr` are the caller's integer
+		// registers. Must not change guest state.
 		virtual void OnCall(std::span<const uint32_t, 32> gpr) = 0;
 	};
 
-	// Registers `probe` for the slot at guest address `slotAddress`, expected
-	// to hold `expectedTarget`. Before the title is linked; the probe must
-	// outlive the process's guest execution.
-	void Register(uint32_t slotAddress, uint32_t expectedTarget, Probe& probe);
+	// Registers `probe` for the function at guest address `entry`, whose
+	// first instruction is expected to be `firstInstruction`. Before the
+	// title is linked; the probe must outlive the process's guest execution.
+	void Register(uint32_t entry, uint32_t firstInstruction, Probe& probe);
 
 	// The host bytes behind `size` bytes of guest memory at `address`, or
 	// null unless all of them are mapped: a probe reads the title's objects
@@ -51,4 +56,4 @@ namespace GuestCallProbes
 	// Installs every registration. Called by the system once the title's
 	// modules are linked, before control passes to it.
 	void InstallRegistered();
-}
+} // namespace GuestCallProbes
