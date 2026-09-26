@@ -24,6 +24,10 @@ namespace GuestPatching
 	// there is none. The block comes from the loader's trampoline area and is
 	// never handed back: a patch written into it has to outlive the call that
 	// wrote it, and nothing knows when that is.
+	//
+	// "May execute from" is meant in both senses. The memory is registered with
+	// the recompiler, so a call reaching it indirectly -- through a vtable, say
+	// -- finds its translated code, and not only a direct branch to the address.
 	uint32_t AllocateCode(uint32_t sizeInBytes);
 
 	// The guest's own order, as the guest would load or store the word.

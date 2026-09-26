@@ -84,6 +84,15 @@ namespace GuestPatching
 			return 0;
 		}
 		const uint32_t address = memory_getVirtualOffsetFromPointer(block);
+		// Registered with the recompiler, which is what makes "may execute from"
+		// true of this memory rather than true of the title's own code only. A
+		// direct branch to an address finds its code by jumping there, but an
+		// indirect one looks the target up in the recompiler's jump table, and a
+		// block that was never registered is not in it -- so a stand-in reached
+		// through a vtable would never run, however sound its instructions are.
+		// The first allocation in a 4 MiB region pays for that region's table
+		// and the rest of them are free.
+		PPCRecompiler_allocateRange(address, sizeInBytes);
 		FreshBlocks().emplace_back(address, sizeInBytes);
 		return address;
 	}
