@@ -5,11 +5,20 @@
 #include "Cafe/OS/RPL/rpl.h"
 
 #include <cstring>
+#include <vector>
 
 namespace GuestPatching
 {
 	namespace
 	{
+		// What AllocateCode has handed out, so a write into one of those blocks
+		// is recognised as the first write to code nothing has compiled yet.
+		std::vector<std::pair<uint32_t, uint32_t>>& FreshBlocks()
+		{
+			static std::vector<std::pair<uint32_t, uint32_t>> blocks;
+			return blocks;
+		}
+
 		uint8* MappedRange(uint32_t guestAddress, uint32_t sizeInBytes)
 		{
 			if (sizeInBytes == 0)
@@ -59,7 +68,19 @@ namespace GuestPatching
 		{
 			return 0;
 		}
-		return memory_getVirtualOffsetFromPointer(block);
+		const uint32_t address = memory_getVirtualOffsetFromPointer(block);
+		FreshBlocks().emplace_back(address, sizeInBytes);
+		return address;
+	}
+
+	bool IsFreshCode(uint32_t guestAddress)
+	{
+		for (const auto& block : FreshBlocks()) {
+			if (guestAddress >= block.first && guestAddress < block.first + block.second) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	bool ReadWord(uint32_t guestAddress, uint32_t& value)
@@ -91,8 +112,10 @@ namespace GuestPatching
 			return false;
 		}
 		memcpy(target, bytes, sizeInBytes);
-		// Whatever the guest had compiled from these bytes is stale now.
-		PPCRecompiler_invalidateRange(guestAddress, guestAddress + sizeInBytes);
+		if (!IsFreshCode(guestAddress)) {
+			// Whatever the guest had compiled from these bytes is stale now.
+			PPCRecompiler_invalidateRange(guestAddress, guestAddress + sizeInBytes);
+		}
 		return true;
 	}
 } // namespace GuestPatching
