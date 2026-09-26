@@ -29,11 +29,12 @@ namespace GuestPatching
 	// The guest's own order, as the guest would load or store the word.
 	bool ReadWord(uint32_t guestAddress, uint32_t& value);
 	bool WriteWord(uint32_t guestAddress, uint32_t value);
-	// True when `guestAddress` is inside a block AllocateCode handed out, which
-	// is what tells a write there from a write over code the guest may already
-	// have compiled: nothing has been compiled from a fresh block, so a write
-	// into one needs no invalidation and must not take the recompiler's lock
-	// to say so.
+	// True when `guestAddress` is inside a block AllocateCode handed out and
+	// nothing has been written to it since, which is what tells a write there
+	// from a write over code the guest may already have compiled. A write into a
+	// fresh block needs no invalidation and must not take the recompiler's lock
+	// to say so; a *second* write to the same block is not fresh, because the
+	// guest may have run from it in between.
 	bool IsFreshCode(uint32_t guestAddress);
 
 	// A block of guest bytes, as they lie, for a caller that already holds the

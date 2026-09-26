@@ -11,12 +11,27 @@ namespace GuestPatching
 {
 	namespace
 	{
-		// What AllocateCode has handed out, so a write into one of those blocks
-		// is recognised as the first write to code nothing has compiled yet.
+		// What AllocateCode has handed out and nothing has been written to yet,
+		// so a write into one of those blocks is recognised as the first write
+		// to code no recompiled function covers. A block leaves this list the
+		// moment it is written: the second write to a block the guest has run
+		// from is not fresh, and must invalidate like any other.
 		std::vector<std::pair<uint32_t, uint32_t>>& FreshBlocks()
 		{
 			static std::vector<std::pair<uint32_t, uint32_t>> blocks;
 			return blocks;
+		}
+
+		void ConsumeFresh(uint32_t guestAddress)
+		{
+			auto& blocks = FreshBlocks();
+			for (auto block = blocks.begin(); block != blocks.end();) {
+				if (guestAddress >= block->first && guestAddress < block->first + block->second) {
+					block = blocks.erase(block);
+				} else {
+					++block;
+				}
+			}
 		}
 
 		uint8* MappedRange(uint32_t guestAddress, uint32_t sizeInBytes)
@@ -112,7 +127,9 @@ namespace GuestPatching
 			return false;
 		}
 		memcpy(target, bytes, sizeInBytes);
-		if (!IsFreshCode(guestAddress)) {
+		const bool fresh = IsFreshCode(guestAddress);
+		ConsumeFresh(guestAddress);
+		if (!fresh) {
 			// Whatever the guest had compiled from these bytes is stale now.
 			PPCRecompiler_invalidateRange(guestAddress, guestAddress + sizeInBytes);
 		}
