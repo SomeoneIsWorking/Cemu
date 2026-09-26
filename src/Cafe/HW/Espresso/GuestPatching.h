@@ -46,4 +46,19 @@ namespace GuestPatching
 	// say. A caller holding a host word array does not: it wants WriteWord.
 	// False unless the whole range is mapped, and then nothing is written.
 	bool WriteBytes(uint32_t guestAddress, const void* bytes, uint32_t sizeInBytes);
+	// How many vblanks a flip takes, which is what paces a title that waits for
+	// its own flip: at two a 60 Hz display presents thirty pictures a second, at
+	// one it presents sixty, and nothing else about the picture changes.
+	//
+	// This is the emulator's pacing and not the title's state. The title's own
+	// record of what it asked for is a field in the display object, and a caller
+	// that wants the two to agree writes that too -- which is a different
+	// operation, in guest memory, and is the one that leaves evidence.
+	//
+	// Refused past the range `GX2SetSwapInterval` accepts, and the current value
+	// is returned either way, so a caller can restore what it found.
+	uint32_t SetSwapInterval(uint32_t vblanksPerFlip);
+
+	// The vblanks a flip takes now.
+	uint32_t SwapInterval();
 } // namespace GuestPatching

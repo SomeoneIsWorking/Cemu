@@ -2,6 +2,7 @@
 
 #include "Cafe/HW/Espresso/Recompiler/PPCRecompiler.h"
 #include "Cafe/HW/MMU/MMU.h"
+#include "Cafe/HW/Latte/Core/Latte.h"
 #include "Cafe/OS/RPL/rpl.h"
 
 #include <cstring>
@@ -105,6 +106,23 @@ namespace GuestPatching
 			}
 		}
 		return false;
+	}
+
+	uint32_t SetSwapInterval(uint32_t vblanksPerFlip)
+	{
+		// The same bound the export checks, so a caller cannot put Latte into a
+		// state the title's own API would have refused.
+		if (vblanksPerFlip >= 20)
+		{
+			return LatteGPUState.sharedArea->swapInterval;
+		}
+		LatteGPUState.sharedArea->swapInterval = vblanksPerFlip;
+		return vblanksPerFlip;
+	}
+
+	uint32_t SwapInterval()
+	{
+		return LatteGPUState.sharedArea->swapInterval;
 	}
 
 	bool ReadWord(uint32_t guestAddress, uint32_t& value)
