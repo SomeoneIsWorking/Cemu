@@ -59,6 +59,12 @@ namespace GuestPatching
 	// is returned either way, so a caller can restore what it found.
 	uint32_t SetSwapInterval(uint32_t vblanksPerFlip);
 
+	// What both of the above return when the graphics bring-up has not created
+	// the shared area yet, so no interval is in force. Distinct from every value
+	// Latte accepts -- 0 would read as one -- so a caller can report "not yet"
+	// instead of a number it would then have to explain.
+	inline constexpr uint32_t kSwapIntervalUnknown = 0xffffffffu;
+
 	// The vblanks a flip takes now.
 	uint32_t SwapInterval();
 } // namespace GuestPatching

@@ -110,6 +110,17 @@ namespace GuestPatching
 
 	uint32_t SetSwapInterval(uint32_t vblanksPerFlip)
 	{
+		// The shared area belongs to the graphics bring-up and does not exist yet
+		// while that is still happening. An accessor that assumed it did turned a
+		// control channel asking what the pacing is -- which any client may do at
+		// any moment, including seconds before a title has a surface -- into a null
+		// dereference inside the GPU state, with a stack trace that pointed at
+		// graphics rather than at the question. So it refuses, and the refusal is
+		// a value: the interval Latte is documented to start at.
+		if (LatteGPUState.sharedArea == nullptr)
+		{
+			return kSwapIntervalUnknown;
+		}
 		// The same bound the export checks, so a caller cannot put Latte into a
 		// state the title's own API would have refused.
 		if (vblanksPerFlip >= 20)
@@ -122,6 +133,10 @@ namespace GuestPatching
 
 	uint32_t SwapInterval()
 	{
+		if (LatteGPUState.sharedArea == nullptr)
+		{
+			return kSwapIntervalUnknown;
+		}
 		return LatteGPUState.sharedArea->swapInterval;
 	}
 

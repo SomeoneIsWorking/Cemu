@@ -891,9 +891,33 @@ VulkanRenderer::VulkanRenderer() : Renderer(RendererAPI::Vulkan)
 
 VulkanRenderer::~VulkanRenderer()
 {
-	SubmitCommandBuffer();
-	WaitDeviceIdle();
-	WaitCommandBufferFinished(GetCurrentCommandBufferId());
+	// An initialisation that failed before the device existed leaves an object
+	// whose every teardown call is on a null handle: the first one faults inside
+	// the driver and the process dies with a stack trace that points at graphics
+	// init rather than at the refusal that caused it. A renderer with no device
+	// has nothing to destroy, and the thread that would need joining was never
+	// started, so there is nothing here to do.
+	//
+	// This is reached in practice by a launch that refuses its arguments: the
+	// refusal is reported, the object unwinds, and without this the product
+	// segfaults on the way out and the message that mattered is on stderr behind
+	// a crash report.
+	if (m_logicalDevice == VK_NULL_HANDLE)
+		return;
+
+	// Draining is for work that was recorded. A renderer initialised and then
+	// destroyed before its first frame has no command buffer -- the current one
+	// is null until a frame acquires it -- so ending a render pass and submitting
+	// it hands the driver a null command buffer and faults. That is not a rare
+	// caller: anything that builds the renderer and then decides not to run a
+	// title reaches it, and the crash points at graphics rather than at the
+	// decision that led there.
+	if (m_state.currentCommandBuffer != VK_NULL_HANDLE)
+	{
+		SubmitCommandBuffer();
+		WaitDeviceIdle();
+		WaitCommandBufferFinished(GetCurrentCommandBufferId());
+	}
 	// shut down pipeline save thread
 	m_destructionRequested = true;
 	m_pipeline_cache_semaphore.notify();
