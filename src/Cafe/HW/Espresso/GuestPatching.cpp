@@ -37,10 +37,14 @@ namespace GuestPatching
 		void ConsumeFresh(uint32_t guestAddress)
 		{
 			auto& blocks = FreshBlocks();
-			for (auto block = blocks.begin(); block != blocks.end();) {
-				if (guestAddress >= block->first && guestAddress < block->first + block->second) {
+			for (auto block = blocks.begin(); block != blocks.end();)
+			{
+				if (guestAddress >= block->first && guestAddress < block->first + block->second)
+				{
 					block = blocks.erase(block);
-				} else {
+				}
+				else
+				{
 					++block;
 				}
 			}
@@ -62,7 +66,7 @@ namespace GuestPatching
 		uint32_t SwapBytes(uint32_t value)
 		{
 			return ((value & 0x000000ffu) << 24) | ((value & 0x0000ff00u) << 8) |
-			       ((value & 0x00ff0000u) >> 8) | ((value & 0xff000000u) >> 24);
+				   ((value & 0x00ff0000u) >> 8) | ((value & 0xff000000u) >> 24);
 		}
 
 		// The bytes as they lie. Internal on purpose: a word crossing this
@@ -145,8 +149,10 @@ namespace GuestPatching
 
 	bool IsRegisteredCode(uint32_t guestAddress)
 	{
-		for (const auto& block : RegisteredBlocks()) {
-			if (guestAddress >= block.first && guestAddress < block.first + block.second) {
+		for (const auto& block : RegisteredBlocks())
+		{
+			if (guestAddress >= block.first && guestAddress < block.first + block.second)
+			{
 				return true;
 			}
 		}
@@ -155,8 +161,10 @@ namespace GuestPatching
 
 	bool IsFreshCode(uint32_t guestAddress)
 	{
-		for (const auto& block : FreshBlocks()) {
-			if (guestAddress >= block.first && guestAddress < block.first + block.second) {
+		for (const auto& block : FreshBlocks())
+		{
+			if (guestAddress >= block.first && guestAddress < block.first + block.second)
+			{
 				return true;
 			}
 		}
@@ -212,6 +220,42 @@ namespace GuestPatching
 		return WriteBytes(guestAddress, &stored, sizeof(stored));
 	}
 
+	bool ReadWords(uint32_t guestAddress, uint32_t* values, uint32_t count)
+	{
+		if (values == nullptr || count == 0)
+		{
+			return false;
+		}
+		// A fixed staging buffer rather than a sized one on the stack: this is called
+		// from probes on the display thread, where a length a caller chose decides how
+		// much stack the frame takes, and a caller that asks for a hundred thousand
+		// words should not be able to move the display thread's stack. A pose is
+		// twelve words, so this is a hundred and fifty times the size asked for; a
+		// longer read is done in as many passes as it takes.
+		constexpr uint32_t kStaged = 32;
+		uint8 staged[kStaged * sizeof(uint32_t)];
+		uint32 done = 0;
+		while (done < count)
+		{
+			const uint32_t batch = (count - done < kStaged) ? (count - done) : kStaged;
+			if (!ReadBytes(guestAddress + sizeof(uint32_t) * done, staged, batch * sizeof(uint32_t)))
+			{
+				return false;
+			}
+			// Guest order, one word at a time, through the same swap ReadWord uses: a
+			// block of words whose halves were exchanged is a structure that reads
+			// perfectly well and is the wrong way round.
+			for (uint32_t index = 0; index < batch; index++)
+			{
+				uint32_t stored = 0;
+				std::memcpy(&stored, staged + sizeof(uint32_t) * index, sizeof(stored));
+				values[done + index] = SwapBytes(stored);
+			}
+			done += batch;
+		}
+		return true;
+	}
+
 	bool WriteBytes(uint32_t guestAddress, const void* bytes, uint32_t sizeInBytes)
 	{
 		if (sizeInBytes == 0)
@@ -226,11 +270,13 @@ namespace GuestPatching
 		memcpy(target, bytes, sizeInBytes);
 		const bool fresh = IsFreshCode(guestAddress);
 		ConsumeFresh(guestAddress);
-		if (!fresh) {
+		if (!fresh)
+		{
 			// Whatever the guest had compiled from these bytes is stale now.
 			PPCRecompiler_invalidateRange(guestAddress, guestAddress + sizeInBytes);
 		}
-		if (IsRegisteredCode(guestAddress)) {
+		if (IsRegisteredCode(guestAddress))
+		{
 			// A range registered for *indirect* calls is not necessarily reachable
 			// by a direct branch, and the difference is not a detail.
 			//

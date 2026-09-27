@@ -32,6 +32,12 @@ namespace GuestPatching
 
 	// The guest's own order, as the guest would load or store the word.
 	bool ReadWord(uint32_t guestAddress, uint32_t& value);
+	// `count` words from `guestAddress`, in one call. ReadWord is the seam for a
+	// caller that wants one word; this is the seam for a caller that wants a
+	// structure -- a pose, a matrix -- and would otherwise take a dozen reads inside
+	// a probe running on the display thread, which is the thing being measured. False
+	// unless the whole range is mapped, and then nothing is written.
+	bool ReadWords(uint32_t guestAddress, uint32_t* values, uint32_t count);
 	bool WriteWord(uint32_t guestAddress, uint32_t value);
 	// `sizeInBytes` of guest memory the guest's own instructions may read and
 	// write, or 0 when there is none. Zeroed, and from the loader's trampoline
