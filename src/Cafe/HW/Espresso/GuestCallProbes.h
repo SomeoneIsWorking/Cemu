@@ -50,7 +50,19 @@ namespace GuestCallProbes
 	// Registers `probe` for the function at guest address `entry`, whose
 	// first instruction is expected to be `firstInstruction`. Before the
 	// title is linked; the probe must outlive the process's guest execution.
-	void Register(uint32_t entry, uint32_t firstInstruction, Probe& probe);
+	//
+	// `holdsEntry` says whether the probe wants to keep seeing calls. A probe
+	// that only wants the *moment* the title was linked -- to take memory from
+	// the loader's arena, which does not exist before then -- passes false, and
+	// its instruction is put straight back once the probe has been told.
+	//
+	// That is not a small distinction. A probe that holds an entry takes it:
+	// any other registration for the same address is refused for the rest of
+	// the run with EntryHeldOther, and there is no way to take it back. So a
+	// momentary observer on a hot function silently disables every standing
+	// probe on that function, and the only symptom is a count of zero, which
+	// reads as a call that never happens.
+	void Register(uint32_t entry, uint32_t firstInstruction, Probe& probe, bool holdsEntry = true);
 
 	// The host bytes behind `size` bytes of guest memory at `address`, or
 	// null unless all of them are mapped: a probe reads the title's objects

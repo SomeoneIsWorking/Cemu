@@ -17,6 +17,9 @@ namespace GuestCallProbes
 			Probe* probe;
 			// The stub's first instruction, the HLE call; 0 until installed.
 			uint32_t stubAddress;
+			// False for a probe that only wants the link-time moment, which
+			// gives the entry straight back once it has had it.
+			bool holdsEntry;
 		};
 
 		// Written before the title's code runs and only read after, so the
@@ -101,9 +104,14 @@ namespace GuestCallProbes
 		}
 	} // namespace
 
-	void Register(uint32_t entry, uint32_t firstInstruction, Probe& probe)
+	void Register(uint32_t entry, uint32_t firstInstruction, Probe& probe, bool holdsEntry)
 	{
-		s_registrations.push_back({entry, firstInstruction, &probe, 0});
+		Registration registration = {};
+		registration.entry = entry;
+		registration.firstInstruction = firstInstruction;
+		registration.probe = &probe;
+		registration.holdsEntry = holdsEntry;
+		s_registrations.push_back(registration);
 	}
 
 	const void* GuestBytes(uint32_t address, uint32_t size)
@@ -125,6 +133,18 @@ namespace GuestCallProbes
 		for (Registration& registration : s_registrations)
 		{
 			registration.probe->OnInstall(Install(registration, hleIndex));
+			if (!registration.holdsEntry)
+			{
+				// A probe that only wanted the moment gives the entry straight
+				// back, so a registration later in this same loop -- a census of
+				// the same function -- can still take it. Its stub is never
+				// entered again and costs nothing.
+				if (registration.stubAddress != 0)
+				{
+					memory_writeU32(registration.entry, registration.firstInstruction);
+					registration.stubAddress = 0;
+				}
+			}
 		}
 	}
 } // namespace GuestCallProbes
