@@ -24,6 +24,17 @@ namespace GuestPatching
 			return blocks;
 		}
 
+		// Every block AllocateCode has handed out, fresh or not. A block leaves the
+		// fresh list the moment it is written, so this is the only list that still
+		// knows a block exists once anything has been written to it -- and it is
+		// the list that says whether an address is a range the recompiler was told
+		// about, which is what a direct branch into it needs.
+		std::vector<std::pair<uint32_t, uint32_t>>& RegisteredBlocks()
+		{
+			static std::vector<std::pair<uint32_t, uint32_t>> blocks;
+			return blocks;
+		}
+
 		void ConsumeFresh(uint32_t guestAddress)
 		{
 			auto& blocks = FreshBlocks();
@@ -96,6 +107,7 @@ namespace GuestPatching
 		// and the rest of them are free.
 		PPCRecompiler_allocateRange(address, sizeInBytes);
 		FreshBlocks().emplace_back(address, sizeInBytes);
+		RegisteredBlocks().emplace_back(address, sizeInBytes);
 		return address;
 	}
 
@@ -120,6 +132,16 @@ namespace GuestPatching
 			memory_writeU32(address + offset, 0);
 		}
 		return address;
+	}
+
+	bool IsRegisteredCode(uint32_t guestAddress)
+	{
+		for (const auto& block : RegisteredBlocks()) {
+			if (guestAddress >= block.first && guestAddress < block.first + block.second) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	bool IsFreshCode(uint32_t guestAddress)
@@ -198,6 +220,31 @@ namespace GuestPatching
 		if (!fresh) {
 			// Whatever the guest had compiled from these bytes is stale now.
 			PPCRecompiler_invalidateRange(guestAddress, guestAddress + sizeInBytes);
+		}
+		if (IsRegisteredCode(guestAddress)) {
+			// A range registered for *indirect* calls is not necessarily reachable
+			// by a direct branch, and the difference is not a detail.
+			//
+			// Registering a range teaches the recompiler to look a target up in its
+			// jump table when the guest branches to it indirectly -- through a
+			// vtable, say -- and a stand-in reached that way runs. A *direct* branch
+			// is a different mechanism: the recompiler emits a jump to the target's
+			// host code, and if that address has never been visited there is no host
+			// code to jump to. Nothing translates on the way, because the branch
+			// carries no lookup, so the block is simply never entered.
+			//
+			// Measured, with a control that could not be argued with: a payload of
+			// one word -- a branch straight back to the instruction after the branch
+			// site, no state, nothing to keep right -- and the tick's call count went
+			// from 180 in six seconds to 0, with the picture rate unchanged. The
+			// branch executed no more than the code before it did; the tick simply
+			// stopped running.
+			//
+			// So a write into a registered range has to leave the range translated,
+			// and not only when something was stale: the *first* write is exactly the
+			// one that leaves it untranslated. This only compiles an address that
+			// has no block, so it costs nothing on a rewrite.
+			PPCRecompiler_recompileIfUnvisited(guestAddress);
 		}
 		return true;
 	}
