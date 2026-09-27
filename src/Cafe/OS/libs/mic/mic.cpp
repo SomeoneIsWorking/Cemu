@@ -168,7 +168,9 @@ void micExport_MICInit(PPCInterpreter_t* hCPU)
 			catch (std::runtime_error& ex)
 			{
 				cemuLog_log(LogType::Force, "can't initialize audio input: {}", ex.what());
-				exit(0);
+				// A device that will not open is a failure, and exiting 0 for it
+				// reports the opposite to whatever asked.
+				exit(EXIT_FAILURE);
 			}
 		}
 	}

@@ -113,6 +113,11 @@ void SystemBringup::Run()
 
 void SystemBringup::Exit(int code)
 {
+	// Every clean exit goes through here, and until now none of them said so. A
+	// run whose product stops answering then has nothing to read: the channel goes
+	// quiet, the log stops wherever it last happened to write, and the exit code
+	// arrives at the parent as 0 with no reason attached. This is that reason.
+	cemuLog_log(LogType::Force, "SystemBringup::Exit with code {}", code);
 	if (sRan)
 	{
 		CafeTitleList::Shutdown();

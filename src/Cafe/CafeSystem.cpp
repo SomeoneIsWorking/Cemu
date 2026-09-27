@@ -175,10 +175,17 @@ void LoadMainExecutable()
 		applicationRPX = RPLLoader_LoadFromMemory(rpxData, rpxSize, (char*)_pathToExecutable.c_str());
 		if (!applicationRPX)
 		{
+			// A title that cannot be loaded is a failure, and it said so only in a
+			// dialog: a run nobody is watching stops with nothing in its log and an
+			// exit code of 0, which reads as a product that finished. Logged, and
+			// exited non-zero, because that is what happened.
+			cemuLog_log(LogType::Force,
+			            "Failed to run this title because the executable is damaged: {}",
+			            _pathToExecutable);
 			WindowSystem::ShowErrorDialog(_tr("Failed to run this title because the executable is damaged"));
 			cemuLog_createLogFile(false);
 			cemuLog_waitForFlush();
-			exit(0);
+			exit(EXIT_FAILURE);
 		}
 		RPLLoader_SetMainModule(applicationRPX);
 		SetEntryPoint(RPLLoader_GetModuleEntrypoint(applicationRPX));
