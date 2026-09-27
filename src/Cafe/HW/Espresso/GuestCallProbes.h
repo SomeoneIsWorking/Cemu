@@ -29,6 +29,21 @@ namespace GuestCallProbes
 		// The entry's instruction branches relative to where it stands, so it
 		// cannot run from the stub. Left as it was.
 		EntryNotRelocatable,
+		// The entry's instruction reads the link register, and the stub's own HLE
+		// call has already overwritten it, so running the instruction inside the
+		// stub computes something other than what it computes where it stands.
+		// Left as it was.
+		//
+		// This is not a hypothetical. The Wind Waker HD display frame's first
+		// word is `mfspr r0, LR` (0x7c0802a6) and its sixth is
+		// `or r30,r3,r3`: the frame stores that link register in its own frame at
+		// `0x1c(r1)` and returns through it on the way out. Probed at the first
+		// word, the frame saved the probe stub's return address instead of its
+		// caller's, and returned into the loader's arena -- measured, with the
+		// link register inside the frame and the program counter in the arena at
+		// the moment of the fault. A probe on a word that reads `LR` cannot be
+		// correct, so it is refused here rather than found out by a crash.
+		EntryReadsLinkRegister,
 		// No code space for the stub within a branch's reach of the function.
 		NoCodeSpace,
 	};

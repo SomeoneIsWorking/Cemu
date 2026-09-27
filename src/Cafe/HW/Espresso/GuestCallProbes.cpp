@@ -52,6 +52,42 @@ namespace GuestCallProbes
 		constexpr int64_t kRelativeBranchReach = 0x02000000;
 		constexpr uint32_t kPrimaryBranchConditional = 16;
 		constexpr uint32_t kPrimaryBranch = 18;
+		// `mfspr` and `mfmsr`, the two forms that read a special-purpose register into a
+		// general one, and the two extended opcodes that name them.
+		constexpr uint32_t kPrimarySystem = 31;
+		constexpr uint32_t kMoveFromSpr = 339;
+		constexpr uint32_t kMoveFromMsr = 83;
+		// SPR 8 is the link register, in bits 16-20.
+		constexpr uint32_t kLinkRegisterSpr = 8;
+		constexpr uint32_t kSprShift = 16;
+		constexpr uint32_t kRegisterFieldMask = 0x1F;
+		constexpr uint32_t kExtendedOpcodeMask = 0x3FF;
+
+		// Whether an instruction reads the link register, and so cannot be run from the stub.
+		//
+		// The stub's first word is an HLE call, and a call sets the link register. The displaced
+		// instruction runs in the *second* word of the stub, by which time the link register holds
+		// the stub's own return address rather than whatever the function's caller left there. An
+		// instruction that reads the link register therefore computes a different value inside the
+		// stub than it does where it stands, and a function that saves it -- which is what a
+		// function with a frame does -- saves the wrong one and returns into the stub's caller.
+		//
+		// Decoded rather than pattern-matched on the two opcodes' full encodings, so a destination
+		// register or a bit in the SPR field cannot hide it: any `mfspr` whose SPR field is 8 reads
+		// the link register, and so does `mfmsr` with the same field.
+		bool ReadsLinkRegister(uint32_t instruction)
+		{
+			if ((instruction >> 26) != kPrimarySystem)
+			{
+				return false;
+			}
+			const uint32_t extended = (instruction >> 1) & kExtendedOpcodeMask;
+			if (extended != kMoveFromSpr && extended != kMoveFromMsr)
+			{
+				return false;
+			}
+			return ((instruction >> kSprShift) & kRegisterFieldMask) == kLinkRegisterSpr;
+		}
 
 		void Dispatch(PPCInterpreter_t* cpu)
 		{
@@ -150,6 +186,10 @@ namespace GuestCallProbes
 			if (primary == kPrimaryBranch || primary == kPrimaryBranchConditional)
 			{
 				return Installation::EntryNotRelocatable;
+			}
+			if (ReadsLinkRegister(registration.firstInstruction))
+			{
+				return Installation::EntryReadsLinkRegister;
 			}
 			uint8* stub = RPLLoader_AllocateTrampolineCodeSpace(kStubInstructions * 4);
 			if (stub == nullptr)
