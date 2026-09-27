@@ -1,6 +1,7 @@
 #include "Cafe/HW/Espresso/GuestCallProbes.h"
 
 #include "Cafe/HW/Espresso/PPCState.h"
+#include "Cafe/HW/Espresso/Recompiler/PPCRecompiler.h"
 #include "Cafe/HW/MMU/MMU.h"
 #include "Cafe/OS/RPL/rpl.h"
 #include "Cemu/Logging/CemuLogging.h"
@@ -157,6 +158,25 @@ namespace GuestCallProbes
 		// probe in this product displaces a link-register save, which does not.
 		constexpr uint32_t kAddressRegister = 12;
 
+		// Write a word of guest code, and tell the recompiler.
+		//
+		// The trampoline area is registered with the recompiler wholesale, because the loader does put
+		// real code in it -- so a block covering any address here may already have been translated, from
+		// whatever the loader had written. Writing over that without invalidating leaves the guest
+		// running the *old* translation: the words in memory are the new ones and the words executing
+		// are not. Every other guest-code writer in this tree invalidates -- the debugger, the
+		// breakpoint setter, the graphic pack's patcher -- and this one did not.
+		//
+		// Measured on Wind Waker HD: a probe's stub and the stand-in's payload are both correct in
+		// memory, and the fault is at the stub's *second* word, a register move that cannot fault,
+		// with a register file holding four words at four-byte spacing and a stack pointer that is not
+		// a guest address at all. That is the loader's translation of that block, still running.
+		void WriteGuestWord(uint32_t address, uint32_t value)
+		{
+			memory_writeU32(address, value);
+			PPCRecompiler_invalidateRange(address, address + sizeof(uint32_t));
+		}
+
 		void WriteStub(uint32_t stubAddress, HLEIDX hleIndex, uint32_t displaced, uint32_t resume)
 		{
 			const uint32_t registerShift = kAddressRegister << 21;
@@ -172,7 +192,7 @@ namespace GuestCallProbes
 			};
 			for (uint32_t i = 0; i < kStubInstructions; i++)
 			{
-				memory_writeU32(stubAddress + i * 4, instructions[i]);
+				WriteGuestWord(stubAddress + i * 4, instructions[i]);
 			}
 		}
 
@@ -211,7 +231,7 @@ namespace GuestCallProbes
 			}
 			registration.stubAddress = stubAddress;
 			WriteStub(stubAddress, hleIndex, registration.firstInstruction, resume);
-			memory_writeU32(registration.entry, RelativeBranch(registration.entry, stubAddress));
+			WriteGuestWord(registration.entry, RelativeBranch(registration.entry, stubAddress));
 			return Installation::Installed;
 		}
 	} // namespace
@@ -291,8 +311,8 @@ namespace GuestCallProbes
 				// never entered again and costs nothing.
 				if (s_registrations[index].stubAddress != 0)
 				{
-					memory_writeU32(s_registrations[index].entry,
-					                 s_registrations[index].firstInstruction);
+					WriteGuestWord(s_registrations[index].entry,
+					               s_registrations[index].firstInstruction);
 					s_registrations[index].stubAddress = 0;
 				}
 			}
