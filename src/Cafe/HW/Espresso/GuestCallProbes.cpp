@@ -4,6 +4,7 @@
 #include "Cafe/HW/MMU/MMU.h"
 #include "Cafe/OS/RPL/rpl.h"
 
+#include <deque>
 #include <vector>
 
 namespace GuestCallProbes
@@ -24,7 +25,17 @@ namespace GuestCallProbes
 
 		// Written before the title's code runs and only read after, so the
 		// guest threads that dispatch read it without a lock.
-		std::vector<Registration> s_registrations;
+		//
+		// A deque, and indexed rather than ranged, because a probe legitimately
+		// learns what it needs to register in OnInstall -- the loader's arena does
+		// not exist before the title is linked, so a mod that needs memory from it
+		// can only ask once it has been told -- and a vector that reallocates
+		// under an append invalidates the loop installing the others. What that
+		// cost: one registration added during installation was silently dropped,
+		// and a probe that had reported `installed` counted nothing at all, which
+		// reads as a title that never calls the function rather than as an
+		// instrument that was never wired.
+		std::deque<Registration> s_registrations;
 
 		constexpr uint32_t kStubInstructions = 3;
 		// A relative branch reaches 32 MiB either side of where it stands.
@@ -130,8 +141,11 @@ namespace GuestCallProbes
 			return;
 		}
 		HLEIDX hleIndex = PPCInterpreter_registerHLECall(Dispatch, "GuestCallProbes::Dispatch");
-		for (Registration& registration : s_registrations)
+		// Indexed, and re-reading the size each turn, so a registration made from
+		// inside an OnInstall is installed in this same pass rather than dropped.
+		for (size_t index = 0; index < s_registrations.size(); index++)
 		{
+			Registration& registration = s_registrations[index];
 			registration.probe->OnInstall(Install(registration, hleIndex));
 			if (!registration.holdsEntry)
 			{

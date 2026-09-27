@@ -2,6 +2,7 @@
 
 #include "Cafe/HW/Espresso/Recompiler/PPCRecompiler.h"
 #include "Cafe/HW/MMU/MMU.h"
+#include "Cafe/OS/libs/coreinit/coreinit_MEM.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
 #include "Cafe/OS/RPL/rpl.h"
 
@@ -95,6 +96,29 @@ namespace GuestPatching
 		// and the rest of them are free.
 		PPCRecompiler_allocateRange(address, sizeInBytes);
 		FreshBlocks().emplace_back(address, sizeInBytes);
+		return address;
+	}
+
+	uint32_t AllocateData(uint32_t sizeInBytes)
+	{
+		if (sizeInBytes == 0)
+		{
+			return 0;
+		}
+		// The emulator's system area: mapped before any title runs, writable, and
+		// not part of the guest's own address space, so nothing the title does can
+		// reach it. Alignment 4 is what a word of state needs.
+		const uint32_t address = (uint32_t)coreinit_allocFromSysArea(sizeInBytes, 4);
+		if (address == 0)
+		{
+			return 0;
+		}
+		// Zeroed, because the host reads these before the guest has written them
+		// on some paths, and a count taken from whatever was there is not a count.
+		for (uint32_t offset = 0; offset < sizeInBytes; offset += 4)
+		{
+			memory_writeU32(address + offset, 0);
+		}
 		return address;
 	}
 
