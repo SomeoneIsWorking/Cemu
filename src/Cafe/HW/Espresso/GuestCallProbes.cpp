@@ -18,8 +18,24 @@ namespace GuestCallProbes
 			uint32_t entry;
 			uint32_t firstInstruction;
 			Probe* probe;
-			// The stub's first instruction, the HLE call; 0 until installed.
+			// The stub's base; 0 until installed.
 			uint32_t stubAddress;
+			// **The address of the stub's HLE word, which is not the stub's base.**
+			//
+			// `Dispatch` finds its registration by comparing the interpreter's program counter
+			// against this, and the comparison used to be against `stubAddress` -- which worked only
+			// because the HLE *was* the stub's first word. Moving the displaced instruction ahead of
+			// the call, which is what makes an entry that reads the link register correct, moved the
+			// HLE to the stub's second word and every probe in the product went silent: no
+			// installation was refused, no report said so, and the display frame's own probe simply
+			// never fired -- which reads as a title that does not paint rather than as an instrument
+			// that is not wired.
+			//
+			// So the address compared against is the one the HLE is actually written at, named by
+			// the same constant `WriteStub` places it with. An instrument that reports nothing is
+			// indistinguishable from a subject that does nothing, and the way to tell them apart is
+			// for the match to be on the word rather than on a convention about where it sits.
+			uint32_t hleAddress;
 			// False for a probe that only wants the link-time moment, which
 			// gives the entry straight back once it has had it.
 			bool holdsEntry;
@@ -44,57 +60,24 @@ namespace GuestCallProbes
 		// instrument that was never wired.
 		std::deque<Registration> s_registrations;
 
-		// The HLE call, the displaced instruction, then the count register and an
-		// indirect branch to the resume. See WriteStub for why the branch is
-		// indirect: a direct one keeps jumping to the host code the target had
-		// when the branch was translated.
+		// **The displaced instruction, the HLE call, then the count register and an indirect
+		// branch to the resume.** See WriteStub for why the displaced word comes first, and why
+		// the branch is indirect: a direct one keeps jumping to the host code the target had when
+		// the branch was translated.
 		constexpr uint32_t kStubInstructions = 6;
+		// Which word of the stub holds the HLE call, which is the word `Dispatch` matches on.
+		// One, because the displaced instruction has to run first -- see WriteStub.
+		constexpr uint32_t kHleWordIndex = 1;
 		// A relative branch reaches 32 MiB either side of where it stands.
 		constexpr int64_t kRelativeBranchReach = 0x02000000;
 		constexpr uint32_t kPrimaryBranchConditional = 16;
 		constexpr uint32_t kPrimaryBranch = 18;
-		// `mfspr` and `mfmsr`, the two forms that read a special-purpose register into a
-		// general one, and the two extended opcodes that name them.
-		constexpr uint32_t kPrimarySystem = 31;
-		constexpr uint32_t kMoveFromSpr = 339;
-		constexpr uint32_t kMoveFromMsr = 83;
-		// SPR 8 is the link register, in bits 16-20.
-		constexpr uint32_t kLinkRegisterSpr = 8;
-		constexpr uint32_t kSprShift = 16;
-		constexpr uint32_t kRegisterFieldMask = 0x1F;
-		constexpr uint32_t kExtendedOpcodeMask = 0x3FF;
-
-		// Whether an instruction reads the link register, and so cannot be run from the stub.
-		//
-		// The stub's first word is an HLE call, and a call sets the link register. The displaced
-		// instruction runs in the *second* word of the stub, by which time the link register holds
-		// the stub's own return address rather than whatever the function's caller left there. An
-		// instruction that reads the link register therefore computes a different value inside the
-		// stub than it does where it stands, and a function that saves it -- which is what a
-		// function with a frame does -- saves the wrong one and returns into the stub's caller.
-		//
-		// Decoded rather than pattern-matched on the two opcodes' full encodings, so a destination
-		// register or a bit in the SPR field cannot hide it: any `mfspr` whose SPR field is 8 reads
-		// the link register, and so does `mfmsr` with the same field.
-		bool ReadsLinkRegister(uint32_t instruction)
-		{
-			if ((instruction >> 26) != kPrimarySystem)
-			{
-				return false;
-			}
-			const uint32_t extended = (instruction >> 1) & kExtendedOpcodeMask;
-			if (extended != kMoveFromSpr && extended != kMoveFromMsr)
-			{
-				return false;
-			}
-			return ((instruction >> kSprShift) & kRegisterFieldMask) == kLinkRegisterSpr;
-		}
 
 		void Dispatch(PPCInterpreter_t* cpu)
 		{
 			for (const Registration& registration : s_registrations)
 			{
-				if (registration.stubAddress == cpu->instructionPointer)
+				if (registration.hleAddress == cpu->instructionPointer)
 				{
 					registration.probe->OnCall(std::span<const uint32_t, 32>(cpu->gpr, 32), cpu->spr.LR);
 					break;
@@ -177,12 +160,48 @@ namespace GuestCallProbes
 			PPCRecompiler_invalidateRange(address, address + sizeof(uint32_t));
 		}
 
+		// **The displaced word comes first, and that ordering is the whole fix.**
+		//
+		// The fault this ordering removes was measured on Wind Waker HD and was diagnosed
+		// correctly: an entry whose first instruction reads the link register computes a
+		// different value in the stub than it does where it stands, because a call sets the link
+		// register. With the HLE call first, `mfspr r0,LR` -- the first instruction of every
+		// function with a frame, and the first instruction of the display thread's binder at
+		// `0x027ff88c` and of its second binder at `0x027ff9c0` -- read the stub's own return
+		// address. The function saved that, returned into the stub, and the display thread
+		// branched into the middle of a probe.
+		//
+		// It was fixed by *refusing* to install a probe on such an entry, and that was the wrong
+		// fix in a way that cost two measurements silently. `EntryReadsLinkRegister` refused the
+		// binder probes and the logic gate's, so the binder reported **0 bindings over 1,198,624
+		// assembled uniform buffers** and the gate reported **0 tick calls over windows in which
+		// the title painted 240 times** -- and both read as a title that never calls the function
+		// rather than as an instrument that was never wired. A refusal that silences an
+		// instrument is worse than the fault it prevents, because the silence looks like a
+		// finding.
+		//
+		// Running the displaced word *before* the call makes the link register the one the
+		// function's caller left, which is the value the instruction computes where it stands, so
+		// the instruction is correct and the refusal has nothing left to prevent. The cost is
+		// that the probe now sees the registers *after* the first instruction rather than before
+		// it, which is a contract change and not a silent one: every probe in this product reads
+		// an argument register, and a prologue that moves an argument into another register
+		// would now be seen. That is reported by each probe's own counters rather than assumed.
+		// The HLE word, tied to the index `Dispatch` will match against. A function rather than a
+		// bare use of the constant so the stub cannot be written with the call somewhere the match
+		// does not look: the failure that motivated both this and `hleAddress` was a stub that was
+		// correct and a match that was looking somewhere else.
+		constexpr uint32_t kHleWord(uint32_t instruction)
+		{
+			return instruction;
+		}
+
 		void WriteStub(uint32_t stubAddress, HLEIDX hleIndex, uint32_t displaced, uint32_t resume)
 		{
 			const uint32_t registerShift = kAddressRegister << 21;
 			const uint32_t instructions[kStubInstructions] = {
-				(1u << 26) | static_cast<uint32_t>(hleIndex),
 				displaced,
+				kHleWord((1u << 26) | static_cast<uint32_t>(hleIndex)),
 				// lis r12, resume
 				kLoadUpperImmediate | registerShift | ((resume >> 16) & 0xffff),
 				// ori r12, r12, resume
@@ -207,10 +226,11 @@ namespace GuestCallProbes
 			{
 				return Installation::EntryNotRelocatable;
 			}
-			if (ReadsLinkRegister(registration.firstInstruction))
-			{
-				return Installation::EntryReadsLinkRegister;
-			}
+			// No link-register refusal here any more, and deliberately so. The stub runs the
+			// displaced word before the call, so an entry that reads the link register reads the
+			// value it would read where it stands. The refusal that used to stand here is
+			// described in WriteStub, and what it cost is named there: two instruments reporting
+			// zero and both reading as findings about the title.
 			uint8* stub = RPLLoader_AllocateTrampolineCodeSpace(kStubInstructions * 4);
 			if (stub == nullptr)
 			{
@@ -230,6 +250,7 @@ namespace GuestCallProbes
 				return Installation::NoCodeSpace;
 			}
 			registration.stubAddress = stubAddress;
+			registration.hleAddress = stubAddress + kHleWordIndex * 4;
 			WriteStub(stubAddress, hleIndex, registration.firstInstruction, resume);
 			WriteGuestWord(registration.entry, RelativeBranch(registration.entry, stubAddress));
 			return Installation::Installed;
