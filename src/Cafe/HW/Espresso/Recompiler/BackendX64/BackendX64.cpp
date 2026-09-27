@@ -1313,16 +1313,50 @@ std::mutex mtx_allocExecutableMemory;
 uint8* PPCRecompilerX86_allocateExecutableMemory(sint32 size)
 {
 	std::lock_guard<std::mutex> lck(mtx_allocExecutableMemory);
-	if( codeMemoryBlockIndex+size > codeMemoryBlockSize )
+	// **The padding is part of the reservation, and the bounds check has to include it.**
+	//
+	// The check below was `codeMemoryBlockIndex + size > codeMemoryBlockSize`, and then up to three
+	// bytes of `0x90` padding were written *past* that. So when `index + size` landed exactly on the
+	// end of the block -- which the check permits, because it is not greater -- the padding loop
+	// wrote at `codeMemoryBlock[codeMemoryBlockSize]`, one past the allocation.
+	//
+	// What that costs is not the write: the allocation is `PROT_NONE`-reserved and mapped `RWX`, and
+	// the region after it is a guard page the same mapper leaves `---p`, so a write of a few bytes
+	// is a write into a page with no permissions. Measured on the real title, in the display thread,
+	// with a stand-in in the loader's trampoline arena so that the recompiler has a new guest block
+	// to translate:
+	//
+	//     OSSched[core=1]  guest pc=0x00e05884  lr=0x02747c84     <- the guest, healthy
+	//     0x7ffebcb7177d:  movbe 0x3c(%r13,%rax,1),%eax
+	//     %r13 = 0x7ffed4000000   %rax = 0x15c   access = 0x7ffed4000198
+	//
+	//     0x7ffed0ffa000-0x7ffed4000000  rw-p     <- the 4MB code block
+	//     0x7ffed4000000-0x7ffed4010000  ---p     <- the guard page the base register points at
+	//
+	// The generated code's data base register is the guard page, so the read faults while the
+	// program counter and link register are exactly where the title put them. Three payloads that
+	// paint the tree twice fault this way and two that do not reach a second pass do not, because
+	// this only bites when a translation lands flush against the end of its block.
+	//
+	// So the size is rounded up before the check, and the block is asked for with the padding
+	// included. Rounding once, here, is also what keeps the caller's `size` meaning "bytes of code"
+	// rather than "bytes of code plus whatever the padding happens to be".
+	//
+	// Nothing else in this function changed: an allocation that fails still returns whatever
+	// `AllocateMemory` gave, as before, because its three callers do not test for null and adding a
+	// null return here would put an unchecked path in where there was not one.
+	const sint32 padded = (size + 3) & ~3;
+	if( codeMemoryBlockIndex + padded > codeMemoryBlockSize )
 	{
 		// allocate new block
-		codeMemoryBlockSize = std::max(1024*1024*4, size+1024); // 4MB (or more if the function is larger than 4MB)
+		codeMemoryBlockSize = std::max(1024*1024*4, padded+1024); // 4MB (or more if the function is larger than 4MB)
 		codeMemoryBlockIndex = 0;
 		codeMemoryBlock = (uint8*)MemMapper::AllocateMemory(nullptr, codeMemoryBlockSize, MemMapper::PAGE_PERMISSION::P_RWX);
 	}
 	uint8* codeMem = codeMemoryBlock + codeMemoryBlockIndex;
-	codeMemoryBlockIndex += size;
-	// pad to 4 byte alignment
+	codeMemoryBlockIndex += padded;
+	// pad to 4 byte alignment. Inside the block now: `padded` is a multiple of four, so this writes
+	// nothing at all, and what remains is the fill for a caller that asked for a rounded size.
 	while (codeMemoryBlockIndex & 3)
 	{
 		codeMemoryBlock[codeMemoryBlockIndex] = 0x90;
