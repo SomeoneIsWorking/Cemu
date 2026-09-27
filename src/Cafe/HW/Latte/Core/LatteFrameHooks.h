@@ -54,12 +54,38 @@ namespace LatteFrameHooks
 		uint32_t stageIndex;
 		float* data;
 		uint32_t sizeInBytes;
-		// Guest addresses of the uniform blocks this draw sourced, which is the
-		// only identity for the object being drawn that survives a tick. Laid
-		// out as (bufferId, physicalAddress) pairs: blockAddressCount counts
-		// pairs, so the array holds twice that many words.
+		// Word 0 of the uniform-block register bank the draw's *shader* names, as
+		// (bufferId, value) pairs: blockAddressCount counts pairs, so the array
+		// holds twice that many words.
+		//
+		// **This is not the block the draw sourced, and it is not an identity for
+		// the object being drawn.** The comment used to say it was both. The
+		// reader below picks the bank by the shader's own group
+		// (`kcacheBankIdOffset`), while the guest writes the bank by the index it
+		// passes to `GX2Set*UniformBlock` -- two different numbers, so the value
+		// read is whatever last wrote that register slot, not this draw's block.
+		// Measured on the real title: Wind Waker's binder (0x027ff88c) hands
+		// `GX2Set*UniformBlock` the pair (0x40, 0x40) for every object, so the
+		// register holds 0x40 where the binder wrote, and the 1,555 distinct values
+		// observed over 382,575 sourced addresses come from the slots the binder
+		// never touched. Over 142,682 exact per-object pairs, no word of the
+		// descriptor record matched any of these values (best word: 3 hits).
+		//
+		// Kept, because it is a faithful reading of the register bank and a
+		// consumer may want it -- but nothing may treat it as the draw's block
+		// address or as an object's identity.
 		const uint32_t* blockAddresses;
 		uint32_t blockAddressCount;
+		// Word 1 of the same register slots, which is `size - 1` as the guest wrote it.
+		//
+		// **This is the half that says the slot was written.** Word 0 is whatever last held the
+		// slot, and the guest and the shader index these registers differently, so word 0 alone
+		// cannot be told from register state the guest never set. Word 1 is a small constant the
+		// guest does write -- Wind Waker's binder passes 0x40 for every object, so every slot it
+		// filled holds 0x3f here -- and a slot holding 0x3f is a 64-byte block the title put there.
+		// Parallel to `blockAddresses`: one word per pair.
+		const uint32_t* blockSizes;
+		uint32_t blockSizeCount;
 		// Whether the draw writes any colour buffer. One that writes depth
 		// alone renders a map a later draw of the frame looks up -- a shadow
 		// map -- rather than anything seen.

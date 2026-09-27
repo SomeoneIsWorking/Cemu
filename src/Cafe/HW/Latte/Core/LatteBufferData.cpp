@@ -86,9 +86,14 @@ uint32 LatteBufferCache_getUniformBlockRegisterOffset(LatteConst::ShaderType sha
 }
 
 uint32 LatteBufferCache_collectUniformBlockSources(LatteDecompilerShader* shader, uint32* pairs,
-												   uint32 maxPairs, uint32* droppedOverCap)
+												   uint32* sizes, uint32 maxPairs,
+												   uint32* droppedOverCap)
 {
 	const uint32 registerOffset = LatteBufferCache_getUniformBlockRegisterOffset(shader->shaderType);
+	// Word 0 of the bank the *shader* names, which is not the bank the guest wrote: the guest
+	// indexes these registers by the index it passes to `GX2Set*UniformBlock` and the shader names
+	// them by its own group's `kcacheBankIdOffset`. See LatteFrameHooks.h -- the value below is the
+	// register slot's contents, not this draw's uniform block.
 	uint32 count = 0;
 	for (const auto& group : shader->list_remappedUniformEntries_bufferGroups)
 	{
@@ -101,6 +106,8 @@ uint32 LatteBufferCache_collectUniformBlockSources(LatteDecompilerShader* shader
 		pairs[count * 2 + 0] = group.bufferId;
 		pairs[count * 2 + 1] =
 			LatteGPUState.contextRegister[registerOffset + group.kcacheBankIdOffset / 4];
+		sizes[count] =
+			LatteGPUState.contextRegister[registerOffset + group.kcacheBankIdOffset / 4 + 1];
 		count++;
 	}
 	return count;
