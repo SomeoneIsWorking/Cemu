@@ -218,7 +218,19 @@ namespace LatteFrameHooks
 		return SubmitRuntimePresentPackets(present, false);
 	}
 
-	bool RequestFrameCapture(CaptureCallback callback)
+	// A run of consecutive captures. Zero means one capture, which is the
+	// behaviour this has always had.
+	//
+	// It exists because the renderer's screenshot request is one outstanding at a
+	// time, so two captures cannot be in flight together, and asking for the
+	// second after the first lands waits a whole frame -- which, in a title that
+	// animates, is a different picture. "Are two consecutive presents the same
+	// picture" is exactly the question a null case asks, and without this it is
+	// unanswerable: the only way to get two images is to take the second a frame
+	// later.
+	static int s_captureRunRemaining = 0;
+
+	bool RequestFrameCapture(CaptureCallback callback, int count)
 	{
 		// Before a renderer exists there is nothing to present and nothing to
 		// capture. Refusing here is the difference between "no renderer yet"
@@ -227,23 +239,39 @@ namespace LatteFrameHooks
 		{
 			return false;
 		}
-		// Arming over an outstanding request would replace its callback, and
-		// the first capture would simply never arrive. Refusing says so.
-		if (g_renderer->IsScreenshotRequested())
+		// Arming over an outstanding request would replace its callback and the
+		// first capture would never arrive, so that is refused -- unless this arm
+		// is a run continuing, where taking the slot is the point.
+		const bool continuing = s_captureRunRemaining > 0;
+		if (g_renderer->IsScreenshotRequested() && !continuing)
 		{
 			return false;
 		}
+		s_captureRunRemaining = std::max(0, count - 1);
+		// The renderer's slot frees itself as its request completes, and this runs
+		// at that point, so re-arming here has the next capture in place before the
+		// frame after this one.
+		//
 		// The renderer already captures the presented scan buffer, before any
-		// overlay, and hands back raw RGB. Reusing it means a captured frame
-		// is the frame a user would see rather than a second path that has to
-		// be kept honest separately. The optional return is its notification
-		// text; an automated capture wants none.
+		// overlay, and hands back raw RGB. Reusing it means a captured frame is the
+		// frame a user would see, rather than a second path that has to be kept
+		// honest separately. The optional return is its notification text; an
+		// automated capture wants none.
 		g_renderer->RequestScreenshot(
-			[callback = std::move(callback)](const std::vector<uint8>& rgb, int width, int height,
-											 bool mainWindow) -> std::optional<std::string> {
+			[callback = std::move(callback), remaining = s_captureRunRemaining](
+				const std::vector<uint8>& rgb, int width, int height,
+				bool mainWindow) -> std::optional<std::string> {
 				FrameImage image{rgb.data(), static_cast<uint32_t>(rgb.size()), width, height,
 								 mainWindow};
 				callback(image);
+				if (remaining > 0)
+				{
+					RequestFrameCapture(callback, remaining);
+				}
+				else
+				{
+					s_captureRunRemaining = 0;
+				}
 				return std::nullopt;
 			});
 		return true;

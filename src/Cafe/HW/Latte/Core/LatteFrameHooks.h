@@ -282,11 +282,18 @@ namespace LatteFrameHooks
 
 	using CaptureCallback = std::function<void(const FrameImage&)>;
 
-	// Capture the next frame the title presents. One-shot: a capture that
-	// repeated every frame would make a replayed image impossible to tell
-	// from the one after it. False means no capture was armed, which is a
-	// refusal rather than a capture that silently never arrives.
-	bool RequestFrameCapture(CaptureCallback callback);
+	// Capture the next frame the title presents. One-shot by default: a capture
+	// that repeated every frame would make a replayed image impossible to tell
+	// from the one after it. False means no capture was armed, which is a refusal
+	// rather than a capture that silently never arrives.
+	//
+	// `count` asks for that many *consecutive* presents, which is a different
+	// question from asking twice: the renderer holds one screenshot request at a
+	// time, so a second arm taken after the first lands waits a whole frame, and
+	// in a title that animates that is a different picture. Two consecutive
+	// presents are the two paints of one pass when a stand-in paints twice, and
+	// comparing them is the null case.
+	bool RequestFrameCapture(CaptureCallback callback, int count = 1);
 
 	// Present a frame the runtime has finished with, without waiting for the
 	// guest's next swap. This builds the same two packets the guest emits --
