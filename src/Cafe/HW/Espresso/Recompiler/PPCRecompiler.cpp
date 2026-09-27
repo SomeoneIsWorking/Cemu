@@ -59,6 +59,57 @@ void ATTR_MS_ABI (*PPCRecompiler_leaveRecompilerCode_unvisited)();
 
 PPCRecompilerInstanceData_t* ppcRecompilerInstanceData;
 
+#define PPC_REC_ALLOC_BLOCK_SIZE	(4*1024*1024) // 4MB
+
+constexpr uint32 PPCRecompiler_GetNumAddressSpaceBlocks()
+{
+    return (MEMORY_CODEAREA_ADDR + MEMORY_CODEAREA_SIZE + PPC_REC_ALLOC_BLOCK_SIZE - 1) / PPC_REC_ALLOC_BLOCK_SIZE;
+}
+
+std::bitset<PPCRecompiler_GetNumAddressSpaceBlocks()> ppcRecompiler_reservedBlockMask;
+
+// Whether the jump table has an entry for a guest address at all.
+//
+// The table is sparse: it covers the whole code area, but only 4 MiB at a time
+// is mapped, and only for a range the loader registered with
+// PPCRecompiler_allocateRange. So "no entry" has two meanings -- nothing has been
+// translated there yet, and nothing is mapped there at all -- and the second one
+// is a host fault rather than a miss. Reading the table for an address in an
+// unregistered range, or past the end of the code area, therefore segfaults
+// instead of answering.
+//
+// Measured, on the display thread, with a guest patch armed: the core resumed
+// with a program counter of 0x02c12ffc, whose 4 MiB block was the one the mask
+// had no bit for, and the read of that block killed the process. The same resume
+// path runs for every core at every timeslice, so any guest address can arrive
+// here and the answer has to be "not translated" rather than a read.
+//
+// An address whose block is mapped is read as before. An address with no block
+// has nothing translated for it and nothing to translate: recompilation needs a
+// registered range to find the function's extent, so refusing here leaves the
+// interpreter to run it, which is what every unvisited address does anyway.
+static bool PPCRecompiler_hasJumpTableBlock(uint32 enterAddress)
+{
+	if (ppcRecompilerInstanceData == nullptr)
+		return false;
+	if (enterAddress >= PPC_REC_CODE_AREA_END)
+		return false;
+	const uint32 block = enterAddress / PPC_REC_ALLOC_BLOCK_SIZE;
+	if (block >= PPCRecompiler_GetNumAddressSpaceBlocks())
+		return false;
+	return ppcRecompiler_reservedBlockMask[block];
+}
+
+// The entry for a guest address, or false when there is none. Every read of the
+// table with an address the guest supplied goes through here.
+static bool PPCRecompiler_readJumpTableEntry(uint32 enterAddress, PPCREC_JUMP_ENTRY& entry)
+{
+	if (!PPCRecompiler_hasJumpTableBlock(enterAddress))
+		return false;
+	entry = ppcRecompilerInstanceData->ppcRecompilerDirectJumpTable[enterAddress / 4];
+	return true;
+}
+
 #if PPCREC_FORCE_SYNCHRONOUS_COMPILATION
 static std::mutex s_singleRecompilationMutex;
 #endif
@@ -88,11 +139,20 @@ void PPCRecompiler_visitAddressNoBlock(uint32 enterAddress)
 	return;
 #endif
 	// quick read-only check without lock
-	if (ppcRecompilerInstanceData->ppcRecompilerDirectJumpTable[enterAddress / 4] != PPCRecompiler_leaveRecompilerCode_unvisited)
+	PPCREC_JUMP_ENTRY entry;
+	if (!PPCRecompiler_readJumpTableEntry(enterAddress, entry) ||
+		entry != PPCRecompiler_leaveRecompilerCode_unvisited)
 		return;
 	// try to acquire lock
 	if (!s_ppcRecompilerState.recompilerSpinlock.try_lock())
 		return;
+	if (!PPCRecompiler_hasJumpTableBlock(enterAddress))
+	{
+		// Nothing to queue: without a mapped block there is no entry to mark, and
+		// marking one is a write into memory that is not there.
+		s_ppcRecompilerState.recompilerSpinlock.unlock();
+		return;
+	}
 	auto funcPtr = ppcRecompilerInstanceData->ppcRecompilerDirectJumpTable[enterAddress / 4];
 	if (funcPtr != PPCRecompiler_leaveRecompilerCode_unvisited)
 	{
@@ -145,7 +205,12 @@ void PPCRecompiler_attemptEnterWithoutRecompile(PPCInterpreter_t* hCPU, uint32 e
 	cemu_assert_debug(hCPU->instructionPointer == enterAddress);
 	if (s_ppcRecompilerState.recompilerEnableCount <= 0)
 		return;
-	auto funcPtr = ppcRecompilerInstanceData->ppcRecompilerDirectJumpTable[enterAddress / 4];
+	// An address with no mapped block is an address nothing was ever translated
+	// for, and the resume path reaches here with whatever program counter the
+	// core was switched out on. See PPCRecompiler_hasJumpTableBlock.
+	PPCREC_JUMP_ENTRY funcPtr;
+	if (!PPCRecompiler_readJumpTableEntry(enterAddress, funcPtr))
+		return;
 	if (funcPtr != PPCRecompiler_leaveRecompilerCode_unvisited && funcPtr != PPCRecompiler_leaveRecompilerCode_visited)
 	{
 		cemu_assert_debug(ppcRecompilerInstanceData != nullptr);
@@ -160,7 +225,11 @@ void PPCRecompiler_attemptEnter(PPCInterpreter_t* hCPU, uint32 enterAddress)
 		return;
 	if (hCPU->remainingCycles <= 0)
 		return;
-	auto funcPtr = ppcRecompilerInstanceData->ppcRecompilerDirectJumpTable[enterAddress / 4];
+	// An address with no mapped block has no entry, so there is nothing to enter
+	// and nothing to visit. See PPCRecompiler_hasJumpTableBlock.
+	PPCREC_JUMP_ENTRY funcPtr;
+	if (!PPCRecompiler_readJumpTableEntry(enterAddress, funcPtr))
+		return;
 	if (funcPtr == PPCRecompiler_leaveRecompilerCode_unvisited)
 	{
 		PPCRecompiler_visitAddressNoBlock(enterAddress);
@@ -493,15 +562,6 @@ void PPCRecompiler_thread()
 	}
 }
 
-#define PPC_REC_ALLOC_BLOCK_SIZE	(4*1024*1024) // 4MB
-
-constexpr uint32 PPCRecompiler_GetNumAddressSpaceBlocks()
-{
-    return (MEMORY_CODEAREA_ADDR + MEMORY_CODEAREA_SIZE + PPC_REC_ALLOC_BLOCK_SIZE - 1) / PPC_REC_ALLOC_BLOCK_SIZE;
-}
-
-std::bitset<PPCRecompiler_GetNumAddressSpaceBlocks()> ppcRecompiler_reservedBlockMask;
-
 void PPCRecompiler_reserveLookupTableBlock(uint32 offset)
 {
 	uint32 blockIndex = offset / PPC_REC_ALLOC_BLOCK_SIZE;
@@ -509,8 +569,16 @@ void PPCRecompiler_reserveLookupTableBlock(uint32 offset)
 
 	if (ppcRecompiler_reservedBlockMask[blockIndex])
 		return;
-	ppcRecompiler_reservedBlockMask[blockIndex] = true;
-
+	// Claiming the block before mapping it leaves a window in which the mask says
+	// the block is there and the block is not: a reader that trusts the mask --
+	// and PPCRecompiler_hasJumpTableBlock now does -- reads host memory that was
+	// never mapped. So the bit is published last, after the mapping and after the
+	// entries are initialised, and a reader that sees it sees a usable block.
+	//
+	// The two racing reservers are left as they were: both map the same range and
+	// both write the same initial value, so the loser costs a mapping and
+	// nothing else. Guarding that needs the spinlock, and the spinlock is not
+	// free here -- this is called from allocateRange, which the loader calls.
 	void* p = MemMapper::AllocateMemory(&(ppcRecompilerInstanceData->ppcRecompilerDirectJumpTable[offset/4]), (PPC_REC_ALLOC_BLOCK_SIZE/4)*sizeof(void*), MemMapper::PAGE_PERMISSION::P_RW, true);
 	if( !p )
 	{
@@ -522,6 +590,7 @@ void PPCRecompiler_reserveLookupTableBlock(uint32 offset)
 	{
 		ppcRecompilerInstanceData->ppcRecompilerDirectJumpTable[offset/4+i] = PPCRecompiler_leaveRecompilerCode_unvisited;
 	}
+	ppcRecompiler_reservedBlockMask[blockIndex] = true;
 }
 
 void PPCRecompiler_allocateRange(uint32 startAddress, uint32 size)
@@ -720,11 +789,13 @@ void PPCRecompiler_Shutdown()
     {
         if(!ppcRecompiler_reservedBlockMask[i])
             continue;
+        // Clear the bit before the mapping goes, for the same reason
+        // reserveLookupTableBlock sets it after: the mask is what a reader trusts,
+        // so it must stop claiming the block before the block stops being there.
+        ppcRecompiler_reservedBlockMask[i] = false;
         // deallocate
         uint64 offset = i * PPC_REC_ALLOC_BLOCK_SIZE;
         MemMapper::FreeMemory(&(ppcRecompilerInstanceData->ppcRecompilerDirectJumpTable[offset/4]), (PPC_REC_ALLOC_BLOCK_SIZE/4)*sizeof(void*), true);
-        // mark as unmapped
-        ppcRecompiler_reservedBlockMask[i] = false;
     }
 	s_ppcRecompilerState.recompilerEnableCount = 0;
 	s_ppcRecompilerState.initialized = false;
