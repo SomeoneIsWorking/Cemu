@@ -62,7 +62,21 @@ namespace GuestCallProbes
 	// momentary observer on a hot function silently disables every standing
 	// probe on that function, and the only symptom is a count of zero, which
 	// reads as a call that never happens.
-	void Register(uint32_t entry, uint32_t firstInstruction, Probe& probe, bool holdsEntry = true);
+	//
+	// `resume` is where execution continues once the probe has been told: 0, the
+	// default, is the instruction after the entry, which is what an observer wants.
+	// Anything else sends the call somewhere else first, and the probe's own stub
+	// branch is the only way into the emulator's trampoline area that is known to
+	// arrive -- a branch written by a host into a guest function's interior does
+	// not, whatever kind of branch it is, because the recompiler has to turn it
+	// into a jump to a host address it never translated.
+	//
+	// That is what makes a gate reachable at all. A gate is a block in the
+	// trampoline area that the guest is sent to, decides whether the call
+	// proceeds, and either continues at `resume` or returns; with the resume
+	// fixed at entry + 4 there is nowhere to send it.
+	void Register(uint32_t entry, uint32_t firstInstruction, Probe& probe, bool holdsEntry = true,
+	              uint32_t resume = 0);
 
 	// The host bytes behind `size` bytes of guest memory at `address`, or
 	// null unless all of them are mapped: a probe reads the title's objects

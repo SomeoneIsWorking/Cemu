@@ -2,7 +2,6 @@
 
 #include "Cafe/HW/Espresso/Recompiler/PPCRecompiler.h"
 #include "Cafe/HW/MMU/MMU.h"
-#include "Cafe/OS/libs/coreinit/coreinit_MEM.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
 #include "Cafe/OS/RPL/rpl.h"
 
@@ -117,14 +116,24 @@ namespace GuestPatching
 		{
 			return 0;
 		}
-		// The emulator's system area: mapped before any title runs, writable, and
-		// not part of the guest's own address space, so nothing the title does can
-		// reach it. Alignment 4 is what a word of state needs.
-		const uint32_t address = (uint32_t)coreinit_allocFromSysArea(sizeInBytes, 4);
-		if (address == 0)
+		// Guest memory, from the loader's trampoline area, because a counter the
+		// guest's own instructions read and write has to be somewhere the guest
+		// can read and write. This used to hand out the emulator's system area
+		// instead, which is host bookkeeping the guest cannot reach at all: a
+		// gate that had been unreachable reported no calls and no fault, and the
+		// first run that actually reached its own stores died on the first one.
+		// A counter that never moved and a counter that faults look the same from
+		// outside, which is why the block's address space is stated rather than
+		// left to be discovered.
+		//
+		// Not registered with the recompiler, unlike AllocateCode: this is data,
+		// and nothing should branch to it.
+		uint8* block = RPLLoader_AllocateTrampolineCodeSpace(static_cast<sint32>(sizeInBytes));
+		if (block == nullptr)
 		{
 			return 0;
 		}
+		const uint32_t address = memory_getVirtualOffsetFromPointer(block);
 		// Zeroed, because the host reads these before the guest has written them
 		// on some paths, and a count taken from whatever was there is not a count.
 		for (uint32_t offset = 0; offset < sizeInBytes; offset += 4)

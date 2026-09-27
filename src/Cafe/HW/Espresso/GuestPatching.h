@@ -33,16 +33,13 @@ namespace GuestPatching
 	// The guest's own order, as the guest would load or store the word.
 	bool ReadWord(uint32_t guestAddress, uint32_t& value);
 	bool WriteWord(uint32_t guestAddress, uint32_t value);
-	// `sizeInBytes` of guest memory the guest may *write*, or 0 when there is
-	// none. Zeroed, and from the emulator's own system area rather than from the
-	// code arena: code is a poor place to keep anything, because a patch that
-	// needs the guest to store into it is relying on an area documented for
-	// instructions, and a store that lands nowhere is indistinguishable from code
-	// that never ran.
+	// `sizeInBytes` of guest memory the guest's own instructions may read and
+	// write, or 0 when there is none. Zeroed, and from the loader's trampoline
+	// area, because that is the one block of guest memory available at link time.
 	//
-	// Deliberately not registered with the recompiler. It is data: a write to it
-	// invalidates what the guest compiled over it, and a branch into it is not a
-	// thing to do.
+	// Deliberately not registered with the recompiler, unlike AllocateCode. It is
+	// data: nothing should branch to it, and a range that claims to be code is a
+	// range the recompiler will hold translated over the words in it.
 	uint32_t AllocateData(uint32_t sizeInBytes);
 
 	// True when `guestAddress` is inside a block AllocateCode handed out and
