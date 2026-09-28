@@ -310,9 +310,6 @@ public:
 	void texture_copyImageSubData(LatteTexture* src, sint32 srcMip, sint32 effectiveSrcX, sint32 effectiveSrcY, sint32 srcSlice, LatteTexture* dst, sint32 dstMip, sint32 effectiveDstX, sint32 effectiveDstY, sint32 dstSlice, sint32 effectiveCopyWidth, sint32 effectiveCopyHeight, sint32 srcDepth) override;
 	LatteTextureReadbackInfo* texture_createReadback(LatteTextureView* textureView) override;
 
-	std::unique_ptr<LatteTextureShadow> texture_createShadow(LatteTexture* texture, sint32 sliceIndex, sint32 mipIndex) override;
-	void texture_copyToShadow(LatteTexture* texture, sint32 sliceIndex, sint32 mipIndex, LatteTextureShadow& shadow) override;
-	void texture_copyFromShadow(LatteTexture* texture, sint32 sliceIndex, sint32 mipIndex, LatteTextureShadow& shadow) override;
 
 	// surface copy
 	void surfaceCopy_copySurfaceWithFormatConversion(LatteTexture* sourceTexture, sint32 srcMip, sint32 srcSlice, LatteTexture* destinationTexture, sint32 dstMip, sint32 dstSlice, sint32 width, sint32 height) override;
@@ -323,7 +320,6 @@ public:
 
 	void surfaceCopy_cleanup();
 
-	void texture_copyShadow(class LatteTextureVk* texture, sint32 sliceIndex, sint32 mipIndex, class LatteTextureShadowVk& shadow, bool toShadow);
 
 private:
 	uint64 copySurface_getPipelineStateHash(struct VkCopySurfaceState_t& state);

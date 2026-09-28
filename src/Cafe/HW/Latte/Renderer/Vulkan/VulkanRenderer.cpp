@@ -7,7 +7,6 @@
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanPipelineCompiler.h"
 
 #include "Cafe/HW/Latte/Core/LatteBufferCache.h"
-#include "Cafe/HW/Latte/Core/LatteGuestStateGuard.h"
 #include "Cafe/HW/Latte/Core/LattePerformanceMonitor.h"
 #include "Cafe/HW/Latte/Core/LatteOverlay.h"
 
@@ -3566,7 +3565,6 @@ VkDescriptorSetInfo::~VkDescriptorSetInfo()
 
 void VulkanRenderer::texture_clearSlice(LatteTexture* hostTexture, sint32 sliceIndex, sint32 mipIndex)
 {
-	LatteGuestStateGuard::NoteWrite(hostTexture, sliceIndex, mipIndex);
 	draw_endRenderPass();
 	auto vkTexture = (LatteTextureVk*)hostTexture;
 	if (vkTexture->isDepth)
@@ -3580,7 +3578,6 @@ void VulkanRenderer::texture_clearSlice(LatteTexture* hostTexture, sint32 sliceI
 
 void VulkanRenderer::texture_clearColorSlice(LatteTexture* hostTexture, sint32 sliceIndex, sint32 mipIndex, float r, float g, float b, float a)
 {
-	LatteGuestStateGuard::NoteWrite(hostTexture, sliceIndex, mipIndex);
 	auto vkTexture = (LatteTextureVk*)hostTexture;
 	if(vkTexture->dim == Latte::E_DIM::DIM_3D)
 	{
@@ -3591,7 +3588,6 @@ void VulkanRenderer::texture_clearColorSlice(LatteTexture* hostTexture, sint32 s
 
 void VulkanRenderer::texture_clearDepthSlice(LatteTexture* hostTexture, uint32 sliceIndex, sint32 mipIndex, bool clearDepth, bool clearStencil, float depthValue, uint32 stencilValue)
 {
-	LatteGuestStateGuard::NoteWrite(hostTexture, static_cast<sint32>(sliceIndex), mipIndex);
 	draw_endRenderPass(); // vkCmdClearDepthStencilImage must not be inside renderpass
 
 	auto vkTexture = (LatteTextureVk*)hostTexture;
@@ -3749,7 +3745,6 @@ void VulkanRenderer::texture_copyImageSubData(LatteTexture* src, sint32 srcMip, 
 {
 	for (sint32 slice = 0; slice < srcDepth; slice++)
 	{
-		LatteGuestStateGuard::NoteWrite(dst, dstSlice + slice, dstMip);
 	}
 	LatteTextureVk* srcVk = static_cast<LatteTextureVk*>(src);
 	LatteTextureVk* dstVk = static_cast<LatteTextureVk*>(dst);

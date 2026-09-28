@@ -2,7 +2,6 @@
 #include "Cafe/HW/Latte/Core/LatteShader.h"
 #include "Cafe/HW/Latte/Core/LattePerformanceMonitor.h"
 #include "Cafe/HW/Latte/Core/LatteTexture.h"
-#include "Cafe/HW/Latte/Core/LatteGuestStateGuard.h"
 
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 #include "Cafe/HW/Latte/LatteAddrLib/LatteAddrLib.h"
@@ -1232,7 +1231,6 @@ LatteTexture::LatteTexture(Latte::E_DIM dim, MPTR physAddress, MPTR physMipAddre
 	Latte::E_HWTILEMODE tileMode, bool isDepth)
 {
 	_AddTextureToGlobalList(this);
-	LatteGuestStateGuard::NoteCreated(this);
 	if (depth < 1)
 		depth = 1;
 	// setup texture object
