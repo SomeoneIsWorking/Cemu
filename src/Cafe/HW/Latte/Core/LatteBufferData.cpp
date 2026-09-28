@@ -140,8 +140,10 @@ uint32 LatteBufferCache_collectUniformBlockSources(LatteDecompilerShader* shader
 	// **Which slot, and what the slot holds.** The guest indexes these registers by the index it
 	// passes to `GX2Set*UniformBlock`; the shader names its groups by `kcacheBankIdOffset`, which
 	// is the same slot index times 7 dwords, so the two agree about *which* slot and the pair below
-	// is that slot's own contents. Word 0 is the physical address `memory_base + ...` reads, and
-	// word 1 is `size - 1` as the guest wrote it.
+	// is that slot's own contents. Word 0 is the **physical** address `memory_base + ...` reads,
+	// and word 1 is `size - 1` as the guest wrote it. Word 0 was documented here for a long while
+	// as "whatever last held the slot, not this draw's uniform block": it is the block, in the
+	// physical address space. The guest address is handed over beside it.
 	uint32 count = 0;
 	for (const auto& group : shader->list_remappedUniformEntries_bufferGroups)
 	{
