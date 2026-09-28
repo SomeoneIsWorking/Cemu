@@ -276,6 +276,18 @@ namespace LatteFrameHooks
 		return true;
 	}
 
+	const void* PhysicalBytes(uint32_t physicalOffset, uint32_t size)
+	{
+		// The PowerPC physical space is four gigabytes and the size is added in
+		// 64 bits, so a range that would wrap cannot pass this by being large.
+		const uint64_t end = static_cast<uint64_t>(physicalOffset) + size;
+		if (end > 0x100000000ull)
+		{
+			return nullptr;
+		}
+		return memory_base + physicalOffset;
+	}
+
 	std::vector<GuestMemoryRegion> MappedGuestMemory()
 	{
 		std::vector<GuestMemoryRegion> regions;

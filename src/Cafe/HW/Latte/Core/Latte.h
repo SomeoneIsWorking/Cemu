@@ -176,14 +176,22 @@ bool LatteBufferCache_LoadRemappedUniforms(struct LatteDecompilerShader* shader,
 // that consumes them.
 uint32 LatteBufferCache_getUniformBlockRegisterOffset(LatteConst::ShaderType shaderType);
 // Each uniform block this shader sources, written into `pairs` as (block id, guest
-// physical address) and capped at `maxPairs`. Returns how many pairs were written. The
-// address of the uniform block register slots the draw's own shader names, and the size word
-// beside each. See LatteFrameHooks.h: word 0 is whatever last held the slot and word 1 is what
-// the guest wrote, so the pair is the only way to tell a block the title set from register state
-// it did not.
+// physical address), into `guests` as the guest address the title passed for the same slots, and
+// capped at `maxPairs`. Returns how many pairs were written. The address of the uniform block
+// register slots the draw's own shader names, and the size word beside each. See
+// LatteFrameHooks.h: word 1 is what the guest wrote, so the pair is the only way to tell a block
+// the title set from register state it did not.
+//
+// **The two addresses are different numbers for the same block, and the guest's own descriptor
+// record holds the guest one.** `GX2Set*UniformBlock` takes a virtual address and the register
+// holds `memory_virtualToPhysical` of it, so a consumer that compares a record word against the
+// register's value is comparing a virtual address with a physical one and finds nothing. That is
+// what `UniformBlockAddress`'s membership test did, and it is why it reported no word at all.
+void LatteBufferCache_noteUniformBlockGuestAddress(LatteConst::ShaderType shaderType, uint32_t index,
+												   uint32_t guestAddress);
 uint32 LatteBufferCache_collectUniformBlockSources(struct LatteDecompilerShader* shader,
-												   uint32* pairs, uint32* sizes, uint32 maxPairs,
-												   uint32* droppedOverCap);
+												   uint32* pairs, uint32* guests, uint32* sizes,
+												   uint32 maxPairs, uint32* droppedOverCap);
 
 void LatteRenderTarget_updateViewport();
 

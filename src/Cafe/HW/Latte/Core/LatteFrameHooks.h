@@ -76,6 +76,15 @@ namespace LatteFrameHooks
 		// address or as an object's identity.
 		const uint32_t* blockAddresses;
 		uint32_t blockAddressCount;
+		// **The guest address the title passed for the same slots, one per pair of
+		// `blockAddresses`.** `blockAddresses` is what the register holds, which is
+		// `memory_virtualToPhysical` of this, and the title's own descriptor record names its
+		// block by the address it passed to `GX2Set*UniformBlock`. A consumer holding a record
+		// word and wanting to know which draw it belongs to has to compare like with like, and a
+		// consumer wanting to read or write the block's bytes has to use this one: a block is
+		// reachable at its guest address, and not at its physical offset, by any reader a
+		// runtime holds.
+		const uint32_t* blockGuestAddresses;
 		// Word 1 of the same register slots, which is `size - 1` as the guest wrote it.
 		//
 		// **This is the half that says the slot was written.** Word 0 is whatever last held the
@@ -404,6 +413,19 @@ namespace LatteFrameHooks
 	// whether the runtime changed anything the guest can read. The bytes are
 	// written by the guest's own threads while they run.
 	std::vector<GuestMemoryRegion> MappedGuestMemory();
+
+	// The host bytes behind `size` bytes of the guest's *physical* space at
+	// `physicalOffset`, or null unless all of them are inside it.
+	//
+	// **This is the other kind of address, and it is the one a uniform block is
+	// registered by.** `UniformAssembly::blockAddresses` holds what the guest
+	// passed to `GX2Set*UniformBlock`, and `LatteBufferData.cpp` reads it back as
+	// `memory_base + physicalAddr` -- a physical offset, not a virtual one. Every
+	// reader of that value has been handed it as though it were a guest address,
+	// which is why the searches for a pose in a block found nothing there: they
+	// were reading a different address space. A consumer that holds a block
+	// address reaches the block's bytes through here, and through nothing else.
+	const void* PhysicalBytes(uint32_t physicalOffset, uint32_t size);
 
 	// Null until something registers. Callers check it rather than paying a
 	// virtual call per draw for a hook nobody installed.
