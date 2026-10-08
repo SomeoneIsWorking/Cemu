@@ -475,7 +475,8 @@ void VulkanRenderer::uniformData_updateUniformVars(uint32 shaderStageIndex, Latt
 									 uniformBuf, shader->uniform.uniformRangeSize, blockSources,
 									 blockSourceCount, blockGuestAddresses, blockSizes,
 									 blockSourceCount, writesColour,
-									 looksUpDepthMap(shader), LatteFrameHooks::InRuntimeSubmission()});
+									 looksUpDepthMap(shader), LatteFrameHooks::InRuntimeSubmission(),
+									 LatteFrameHooks::DrawPacket()});
 	}
 	dynamicOffsetInfo.uniformVarBufferOffset[shaderStageIndex] = uniformData_uploadUniformDataBufferGetOffset({(uint8*)uniformBuf, shader->uniform.uniformRangeSize});
 }
@@ -537,7 +538,8 @@ void VulkanRenderer::uniformData_updateUniformVarsIncremental(uint32 shaderStage
 										 uniformBuf, shader->uniform.uniformRangeSize, blockSources,
 										 blockSourceCount, blockGuestAddresses, blockSizes,
 										 blockSourceCount, writesColour,
-										 looksUpDepthMap(shader), LatteFrameHooks::InRuntimeSubmission()});
+										 looksUpDepthMap(shader), LatteFrameHooks::InRuntimeSubmission(),
+									 LatteFrameHooks::DrawPacket()});
 		}
 		dynamicOffsetInfo.uniformVarBufferOffset[shaderStageIndex] = uniformData_uploadUniformDataBufferGetOffset({(uint8*)uniformBuf, shader->uniform.uniformRangeSize});
 		stageUniformModifiedMask |= (1 << shaderStageIndex);
@@ -1453,6 +1455,7 @@ void VulkanRenderer::draw_notifyPrepared(const LatteDecompilerShader* vertexShad
 	// the buffer cache takes it as changed for the next draw (see
 	// vertexBindingsReplaced), so the guest's buffer is bound back.
 	draw.vertexReplaceable = draw.fromRuntime;
+	draw.packet = LatteFrameHooks::DrawPacket();
 	LatteFrameHooks::VertexReplacements replacements;
 	observer->OnDrawPrepared(draw, replacements);
 	if (!draw.vertexReplaceable)
