@@ -263,6 +263,18 @@ namespace LatteFrameHooks
 		uint64_t timeDomainId;
 	};
 
+	// One IT_SET_ALU_CONST packet as it reaches the register file.
+	struct AluConstants
+	{
+		// The packet's first data word, as DrawPacket() names a draw.
+		uintptr_t packet;
+		// In 32-bit words from the ALU constant base; vertex constants start at 0x400.
+		uint32_t firstWord;
+		// The register file's copy, host order: an observer may rewrite it.
+		uint32_t* values;
+		uint32_t count;
+	};
+
 	class Observer
 	{
 	  public:
@@ -301,6 +313,9 @@ namespace LatteFrameHooks
 		virtual void OnDrawPrepared(const DrawPrepared& draw, VertexReplacements& replacements) = 0;
 		// One per outermost runtime submission, after it has been processed.
 		virtual void OnRuntimeSubmission(const SubmissionSummary& summary) = 0;
+		// Every IT_SET_ALU_CONST packet, after its values reached the register
+		// file and before any draw reads them. Returns whether it rewrote them.
+		virtual bool OnAluConstants(const AluConstants& constants) = 0;
 	};
 
 	// Registered once at startup by the first-party library, and never replaced
@@ -402,6 +417,9 @@ namespace LatteFrameHooks
 	// The draw packet the Latte thread is executing, as a host address into
 	// the command buffer the guest wrote; 0 outside a draw packet.
 	uintptr_t DrawPacket();
+
+	// Hands an ALU constant packet to the observer; whether it rewrote the values.
+	bool NoteAluConstants(const void* packet, uint32_t firstWord, uint32_t* values, uint32_t count);
 
 	class DrawPacketScope
 	{
