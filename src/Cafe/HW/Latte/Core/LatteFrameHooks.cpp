@@ -3,7 +3,6 @@
 #include "Cafe/HW/Latte/Core/LattePM4.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 #include "Cafe/HW/MMU/MMU.h"
-#include "Cafe/OS/libs/gx2/GX2_Command.h"
 
 #include <array>
 #include <vector>
@@ -74,39 +73,6 @@ namespace LatteFrameHooks
 		// Owned by the Latte thread, which is the only thread that walks them.
 		int s_commandBufferDepth = 0;
 	} // namespace
-
-	namespace
-	{
-		// Owned by the Latte thread.
-		uintptr_t s_drawPacket = 0;
-	} // namespace
-
-	CommandWritePosition GetCommandWritePosition()
-	{
-		const GX2::GX2PerCoreCBState& state = GX2::s_perCoreCBState[PPCInterpreter_getCurrentCoreIndex()];
-		if (state.bufferPtr == nullptr || state.currentWritePtr == nullptr)
-		{
-			return {};
-		}
-		return {reinterpret_cast<uintptr_t>(state.bufferPtr),
-				reinterpret_cast<uintptr_t>(state.bufferPtr + state.bufferSizeInU32s),
-				reinterpret_cast<uintptr_t>(state.currentWritePtr)};
-	}
-
-	uintptr_t DrawPacket()
-	{
-		return s_drawPacket;
-	}
-
-	DrawPacketScope::DrawPacketScope(const void* packet)
-	{
-		s_drawPacket = reinterpret_cast<uintptr_t>(packet);
-	}
-
-	DrawPacketScope::~DrawPacketScope()
-	{
-		s_drawPacket = 0;
-	}
 
 	bool InCommandBuffer()
 	{

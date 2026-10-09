@@ -87,8 +87,6 @@ namespace LatteFrameHooks
 		// substitution belongs to -- a blend edits the runtime's own replay
 		// and never the frame the guest is drawing.
 		bool fromRuntime;
-		// Host address of the draw packet being executed, keyed like GX2's write position.
-		uintptr_t packet;
 	};
 
 	// One draw about to be issued, after its uniforms were assembled. A draw
@@ -139,8 +137,6 @@ namespace LatteFrameHooks
 		uint32_t vertexBufferCount;
 		VertexAttribute vertexAttributes[kMaxVertexAttributes];
 		uint32_t vertexAttributeCount;
-		// Host address of the draw packet being executed, keyed like GX2's write position.
-		uintptr_t packet;
 	};
 
 	// The nine arguments of the packet that copies a colour buffer to a scan
@@ -351,30 +347,6 @@ namespace LatteFrameHooks
 
 	// Marks such a walk for as long as it is in scope. Counted, so a nested
 	// buffer does not clear the mark when the inner one finishes.
-	// Where the calling guest core's next GX2 packet goes, as host addresses;
-	// all zero with no command buffer open.
-	struct CommandWritePosition
-	{
-		uintptr_t bufferStart;
-		uintptr_t bufferEnd;
-		uintptr_t write;
-	};
-
-	CommandWritePosition GetCommandWritePosition();
-
-	// The draw packet the Latte thread is executing, as a host address into
-	// the command buffer the guest wrote; 0 outside a draw packet.
-	uintptr_t DrawPacket();
-
-	class DrawPacketScope
-	{
-	  public:
-		explicit DrawPacketScope(const void* packet);
-		~DrawPacketScope();
-		DrawPacketScope(const DrawPacketScope&) = delete;
-		DrawPacketScope& operator=(const DrawPacketScope&) = delete;
-	};
-
 	class CommandBufferWalk
 	{
 	  public:

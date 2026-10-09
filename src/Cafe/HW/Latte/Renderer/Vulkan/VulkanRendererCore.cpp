@@ -472,8 +472,7 @@ void VulkanRenderer::uniformData_updateUniformVars(uint32 shaderStageIndex, Latt
 		observer->OnUniformAssembly({shader->baseHash, shader->auxHash, shaderStageIndex,
 									 uniformBuf, shader->uniform.uniformRangeSize, blockSources,
 									 blockSourceCount, writesColour,
-									 looksUpDepthMap(shader), LatteFrameHooks::InRuntimeSubmission(),
-									 LatteFrameHooks::DrawPacket()});
+									 looksUpDepthMap(shader), LatteFrameHooks::InRuntimeSubmission()});
 	}
 	dynamicOffsetInfo.uniformVarBufferOffset[shaderStageIndex] = uniformData_uploadUniformDataBufferGetOffset({(uint8*)uniformBuf, shader->uniform.uniformRangeSize});
 }
@@ -532,8 +531,7 @@ void VulkanRenderer::uniformData_updateUniformVarsIncremental(uint32 shaderStage
 			observer->OnUniformAssembly({shader->baseHash, shader->auxHash, shaderStageIndex,
 										 uniformBuf, shader->uniform.uniformRangeSize, blockSources,
 										 blockSourceCount, writesColour,
-										 looksUpDepthMap(shader), LatteFrameHooks::InRuntimeSubmission(),
-									 LatteFrameHooks::DrawPacket()});
+										 looksUpDepthMap(shader), LatteFrameHooks::InRuntimeSubmission()});
 		}
 		dynamicOffsetInfo.uniformVarBufferOffset[shaderStageIndex] = uniformData_uploadUniformDataBufferGetOffset({(uint8*)uniformBuf, shader->uniform.uniformRangeSize});
 		stageUniformModifiedMask |= (1 << shaderStageIndex);
@@ -1444,7 +1442,6 @@ void VulkanRenderer::draw_notifyPrepared(const LatteDecompilerShader* vertexShad
 		return;
 	}
 	LatteFrameHooks::DrawPrepared draw = DescribeDrawPrepared(vertexShader, maxIndex, baseInstance, instanceCount);
-	draw.packet = LatteFrameHooks::DrawPacket();
 	observer->OnDrawPrepared(draw);
 }
 
