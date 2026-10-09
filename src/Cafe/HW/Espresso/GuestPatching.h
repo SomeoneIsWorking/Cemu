@@ -39,6 +39,10 @@ namespace GuestPatching
 	// unless the whole range is mapped, and then nothing is written.
 	bool ReadWords(uint32_t guestAddress, uint32_t* values, uint32_t count);
 	bool WriteWord(uint32_t guestAddress, uint32_t value);
+	// `count` words of guest data, in the guest's order. Data only: nothing is
+	// invalidated, so a range the guest executes must go through WriteWord.
+	// False unless the whole range is mapped, and then nothing is written.
+	bool WriteDataWords(uint32_t guestAddress, const uint32_t* values, uint32_t count);
 	// `sizeInBytes` of guest memory the guest's own instructions may read and
 	// write, or 0 when there is none. Zeroed, and from the loader's trampoline
 	// area, because that is the one block of guest memory available at link time.

@@ -46,7 +46,8 @@ namespace GuestCallProbes
 		// its first instruction runs; `gpr` are the caller's integer
 		// registers and `returnAddress` the link register -- the instruction
 		// after the call that entered it, naming the call site when it was
-		// entered by one. Must not change guest state.
+		// entered by one. May write guest data (GuestPatching::WriteDataWords),
+		// never code or registers.
 		virtual void OnCall(std::span<const uint32_t, 32> gpr, uint32_t returnAddress) = 0;
 	};
 

@@ -220,6 +220,25 @@ namespace GuestPatching
 		return WriteBytes(guestAddress, &stored, sizeof(stored));
 	}
 
+	bool WriteDataWords(uint32_t guestAddress, const uint32_t* values, uint32_t count)
+	{
+		if (values == nullptr || count == 0)
+		{
+			return false;
+		}
+		uint8* target = MappedRange(guestAddress, count * sizeof(uint32_t));
+		if (target == nullptr)
+		{
+			return false;
+		}
+		for (uint32_t i = 0; i < count; i++)
+		{
+			const uint32_t stored = SwapBytes(values[i]);
+			memcpy(target + i * sizeof(uint32_t), &stored, sizeof(stored));
+		}
+		return true;
+	}
+
 	bool ReadWords(uint32_t guestAddress, uint32_t* values, uint32_t count)
 	{
 		if (values == nullptr || count == 0)
