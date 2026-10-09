@@ -76,25 +76,6 @@ namespace LatteFrameHooks
 		// address or as an object's identity.
 		const uint32_t* blockAddresses;
 		uint32_t blockAddressCount;
-		// **The guest address the title passed for the same slots, one per pair of
-		// `blockAddresses`.** `blockAddresses` is what the register holds, which is
-		// `memory_virtualToPhysical` of this, and the title's own descriptor record names its
-		// block by the address it passed to `GX2Set*UniformBlock`. A consumer holding a record
-		// word and wanting to know which draw it belongs to has to compare like with like, and a
-		// consumer wanting to read or write the block's bytes has to use this one: a block is
-		// reachable at its guest address, and not at its physical offset, by any reader a
-		// runtime holds.
-		const uint32_t* blockGuestAddresses;
-		// Word 1 of the same register slots, which is `size - 1` as the guest wrote it.
-		//
-		// **This is the half that says the slot was written.** Word 0 is whatever last held the
-		// slot, and the guest and the shader index these registers differently, so word 0 alone
-		// cannot be told from register state the guest never set. Word 1 is a small constant the
-		// guest does write -- Wind Waker's binder passes 0x40 for every object, so every slot it
-		// filled holds 0x3f here -- and a slot holding 0x3f is a 64-byte block the title put there.
-		// Parallel to `blockAddresses`: one word per pair.
-		const uint32_t* blockSizes;
-		uint32_t blockSizeCount;
 		// Whether the draw writes any colour buffer. One that writes depth
 		// alone renders a map a later draw of the frame looks up -- a shadow
 		// map -- rather than anything seen.

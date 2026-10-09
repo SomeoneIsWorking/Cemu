@@ -87,63 +87,13 @@ uint32 LatteBufferCache_getUniformBlockRegisterOffset(LatteConst::ShaderType sha
 	}
 }
 
-namespace
-{
-	// The guest address the title passed for each uniform block slot, beside the physical one the
-	// register holds. **Bounded, lock-free, and written by the CPU while the render thread reads
-	// it**: the guest sets a block on its own thread and the draw reads it on the render thread, so
-	// a plain array would be a data race and a lock would be a frame-time spike. A relaxed store
-	// per slot and an acquire read of the same slot is enough, because each word is independent
-	// and a reader that sees a stale address reads a block the title set earlier rather than a
-	// torn value.
-	//
-	// 16 slots per stage, three stages, from RegDefines.h's `mmSQ_*_UNIFORM_BLOCK_END - START + 1`
-	// divided by the 7 dwords a slot occupies. The size is checked against those defines at the
-	// point of use rather than repeated here.
-	constexpr uint32 kUniformBlockSlotsPerStage = 16;
-	constexpr uint32 kUniformBlockStages = 3;
-	std::atomic<uint32> g_uniformBlockGuestAddress[kUniformBlockStages][kUniformBlockSlotsPerStage];
-
-	uint32 uniformBlockStageIndex(LatteConst::ShaderType shaderType)
-	{
-		switch (shaderType)
-		{
-		case LatteConst::ShaderType::Vertex:
-			return 0;
-		case LatteConst::ShaderType::Pixel:
-			return 1;
-		case LatteConst::ShaderType::Geometry:
-			return 2;
-		default:
-			UNREACHABLE;
-		}
-	}
-} // namespace
-
-void LatteBufferCache_noteUniformBlockGuestAddress(LatteConst::ShaderType shaderType, uint32_t index,
-												   uint32_t guestAddress)
-{
-	const uint32 stage = uniformBlockStageIndex(shaderType);
-	if (index >= kUniformBlockSlotsPerStage)
-	{
-		return;
-	}
-	g_uniformBlockGuestAddress[stage][index].store(guestAddress, std::memory_order_relaxed);
-}
-
 uint32 LatteBufferCache_collectUniformBlockSources(LatteDecompilerShader* shader, uint32* pairs,
-												   uint32* guests, uint32* sizes, uint32 maxPairs,
-												   uint32* droppedOverCap)
+												   uint32 maxPairs, uint32* droppedOverCap)
 {
 	const uint32 registerOffset = LatteBufferCache_getUniformBlockRegisterOffset(shader->shaderType);
-	const uint32 stage = uniformBlockStageIndex(shader->shaderType);
-	// **Which slot, and what the slot holds.** The guest indexes these registers by the index it
-	// passes to `GX2Set*UniformBlock`; the shader names its groups by `kcacheBankIdOffset`, which
-	// is the same slot index times 7 dwords, so the two agree about *which* slot and the pair below
-	// is that slot's own contents. Word 0 is the **physical** address `memory_base + ...` reads,
-	// and word 1 is `size - 1` as the guest wrote it. Word 0 was documented here for a long while
-	// as "whatever last held the slot, not this draw's uniform block": it is the block, in the
-	// physical address space. The guest address is handed over beside it.
+	// The guest indexes these registers by the index it passes to `GX2Set*UniformBlock`; the
+	// shader names its groups by `kcacheBankIdOffset`, the same slot index times 7 dwords. Word 0
+	// is the block's physical address.
 	uint32 count = 0;
 	for (const auto& group : shader->list_remappedUniformEntries_bufferGroups)
 	{
@@ -153,16 +103,9 @@ uint32 LatteBufferCache_collectUniformBlockSources(LatteDecompilerShader* shader
 				(*droppedOverCap)++;
 			break;
 		}
-		const uint32 slot = group.kcacheBankIdOffset / (7 * 4);
 		pairs[count * 2 + 0] = group.bufferId;
 		pairs[count * 2 + 1] =
 			LatteGPUState.contextRegister[registerOffset + group.kcacheBankIdOffset / 4];
-		sizes[count] =
-			LatteGPUState.contextRegister[registerOffset + group.kcacheBankIdOffset / 4 + 1];
-		if (slot < kUniformBlockSlotsPerStage && guests != nullptr)
-		{
-			guests[count] = g_uniformBlockGuestAddress[stage][slot].load(std::memory_order_acquire);
-		}
 		count++;
 	}
 	return count;

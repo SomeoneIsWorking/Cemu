@@ -280,30 +280,6 @@ void gx2Export_GX2SetComputeShader(PPCInterpreter_t* hCPU)
 
 void _GX2SubmitUniformBlock(uint32 registerBase, uint32 index, MPTR virtualAddress, uint32 size)
 {
-	// The register below holds `memory_virtualToPhysical(virtualAddress)`, and the title's own
-	// descriptor record names the block by the address it passed here. Keeping the guest address
-	// beside the physical one is what lets a consumer pair the two: a record word compared against
-	// the register's value is comparing a virtual address with a physical one.
-	//
-	// The stage is read off the register base rather than passed again, because the base *is* how
-	// the caller says which stage's bank it is writing.
-	switch (registerBase)
-	{
-	case mmSQ_VTX_UNIFORM_BLOCK_START - mmSQ_TEX_RESOURCE_WORD0:
-		LatteBufferCache_noteUniformBlockGuestAddress(LatteConst::ShaderType::Vertex, index,
-													   (uint32)virtualAddress);
-		break;
-	case mmSQ_PS_UNIFORM_BLOCK_START - mmSQ_TEX_RESOURCE_WORD0:
-		LatteBufferCache_noteUniformBlockGuestAddress(LatteConst::ShaderType::Pixel, index,
-													   (uint32)virtualAddress);
-		break;
-	case mmSQ_GS_UNIFORM_BLOCK_START - mmSQ_TEX_RESOURCE_WORD0:
-		LatteBufferCache_noteUniformBlockGuestAddress(LatteConst::ShaderType::Geometry, index,
-													   (uint32)virtualAddress);
-		break;
-	default:
-		break;
-	}
 	GX2::GX2ReserveCmdSpace(9);
 	gx2WriteGather_submit(pm4HeaderType3(IT_SET_RESOURCE, 8),
 		registerBase + index * 7,
