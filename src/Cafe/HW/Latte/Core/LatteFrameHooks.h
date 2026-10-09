@@ -129,6 +129,8 @@ namespace LatteFrameHooks
 			uint32_t stride;
 			// The attribute buffer slot the fetch shader reads it from.
 			uint32_t slot;
+			// Vertices the draw reads from it by vertex index; 0 for per-instance data only.
+			uint32_t vertices;
 		};
 
 		// One value the fetch shader reads per vertex, as the guest laid it
@@ -160,15 +162,11 @@ namespace LatteFrameHooks
 		uint32_t vertexBufferCount;
 		VertexAttribute vertexAttributes[kMaxVertexAttributes];
 		uint32_t vertexAttributeCount;
-		// Whether the renderer would draw this draw from VertexReplacements:
-		// only ever the runtime's own draws, and only in a renderer that binds
-		// the guest's buffers back for the draw after.
-		bool vertexReplaceable;
 		// Host address of the draw packet being executed, keyed like GX2's write position.
 		uintptr_t packet;
 	};
 
-	// Bytes a runtime draw reads in place of its vertex buffers: data[i],
+	// Bytes a draw reads in place of its vertex buffers: data[i],
 	// when set, replaces vertexBuffers[i] and is as long, laid out alike. The
 	// renderer copies them into memory of its own before the call returns,
 	// so a replacement never writes the guest's vertex data -- which the
@@ -308,8 +306,8 @@ namespace LatteFrameHooks
 		virtual void OnGuestDraw(bool fromCommandBuffer) = 0;
 		// Every draw the renderer issues, the title's or the runtime's, once its
 		// uniforms are assembled.
-		// A draw that is vertexReplaceable is drawn from any replacements the
-		// observer sets; any other draw ignores them.
+		// The draw reads any replacements the observer sets instead of the
+		// guest's buffers; the draw after binds the guest's buffers again.
 		virtual void OnDrawPrepared(const DrawPrepared& draw, VertexReplacements& replacements) = 0;
 		// One per outermost runtime submission, after it has been processed.
 		virtual void OnRuntimeSubmission(const SubmissionSummary& summary) = 0;

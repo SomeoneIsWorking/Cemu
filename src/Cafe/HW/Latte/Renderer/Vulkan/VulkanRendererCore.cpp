@@ -1436,7 +1436,7 @@ namespace
 				draw.vertexBuffers[draw.vertexBufferCount++] = {
 					memory_getPointerFromPhysicalOffset(bufferAddress),
 					bufferGroup.getReadSize(bufferStride, maxIndex, baseInstance, instanceCount), bufferStride,
-					bufferGroup.attributeBufferIndex};
+					bufferGroup.attributeBufferIndex, bufferGroup.hasVtxIndexAccess ? maxIndex + 1 : 0};
 			}
 		}
 		return draw;
@@ -1454,14 +1454,9 @@ void VulkanRenderer::draw_notifyPrepared(const LatteDecompilerShader* vertexShad
 	// A replacement lasts one draw: a replaced slot is marked unbound, and
 	// the buffer cache takes it as changed for the next draw (see
 	// vertexBindingsReplaced), so the guest's buffer is bound back.
-	draw.vertexReplaceable = draw.fromRuntime;
 	draw.packet = LatteFrameHooks::DrawPacket();
 	LatteFrameHooks::VertexReplacements replacements;
 	observer->OnDrawPrepared(draw, replacements);
-	if (!draw.vertexReplaceable)
-	{
-		return;
-	}
 	for (uint32 index = 0; index < draw.vertexBufferCount; ++index)
 	{
 		if (replacements.data[index] == nullptr)
