@@ -393,10 +393,6 @@ private:
 		{
 			uint32 offset;
 		}currentVertexBinding[LATTE_MAX_VERTEX_BUFFERS]{};
-		// Slots bound to an observer's replacement vertices for one draw: the
-		// buffer cache binds only buffers it sees change, so the next draw
-		// takes these as changed and binds the guest's buffer back.
-		uint32 vertexBindingsReplaced{};
 
 		// index buffer
 		Renderer::INDEX_TYPE activeIndexType{};
@@ -559,8 +555,7 @@ private:
 
 	void draw_updateVertexBuffersDirectAccess();
 	// Reports the draw to a registered LatteFrameHooks observer, once its
-	// vertex buffers are bound, and binds any vertex data the observer
-	// replaces them with for a runtime draw.
+	// vertex buffers are bound.
 	void draw_notifyPrepared(const LatteDecompilerShader* vertexShader, uint32 maxIndex, uint32 baseInstance, uint32 instanceCount);
 	void draw_updateUniformBuffersDirectAccess(LatteDecompilerShader* shader, const uint32 uniformBufferRegOffset, LatteConst::ShaderType shaderType);
 

@@ -108,10 +108,6 @@ namespace LatteFrameHooks
 			uint32_t sizeInBytes;
 			// Bytes from one vertex (or instance) to the next.
 			uint32_t stride;
-			// The attribute buffer slot the fetch shader reads it from.
-			uint32_t slot;
-			// Vertices the draw reads from it by vertex index; 0 for per-instance data only.
-			uint32_t vertices;
 		};
 
 		// One value the fetch shader reads per vertex, as the guest laid it
@@ -145,16 +141,6 @@ namespace LatteFrameHooks
 		uint32_t vertexAttributeCount;
 		// Host address of the draw packet being executed, keyed like GX2's write position.
 		uintptr_t packet;
-	};
-
-	// Bytes a draw reads in place of its vertex buffers: data[i],
-	// when set, replaces vertexBuffers[i] and is as long, laid out alike. The
-	// renderer copies them into memory of its own before the call returns,
-	// so a replacement never writes the guest's vertex data -- which the
-	// guest's own frames go on reading.
-	struct VertexReplacements
-	{
-		const void* data[DrawPrepared::kMaxVertexBuffers]{};
 	};
 
 	// The nine arguments of the packet that copies a colour buffer to a scan
@@ -275,9 +261,7 @@ namespace LatteFrameHooks
 		virtual void OnGuestDraw(bool fromCommandBuffer) = 0;
 		// Every draw the renderer issues, the title's or the runtime's, once its
 		// uniforms are assembled.
-		// The draw reads any replacements the observer sets instead of the
-		// guest's buffers; the draw after binds the guest's buffers again.
-		virtual void OnDrawPrepared(const DrawPrepared& draw, VertexReplacements& replacements) = 0;
+		virtual void OnDrawPrepared(const DrawPrepared& draw) = 0;
 		// One per outermost runtime submission, after it has been processed.
 		virtual void OnRuntimeSubmission(const SubmissionSummary& summary) = 0;
 	};
