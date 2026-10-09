@@ -98,15 +98,6 @@ namespace LatteFrameHooks
 		return s_drawPacket;
 	}
 
-	bool NoteAluConstants(const void* packet, uint32_t firstWord, uint32_t* values, uint32_t count)
-	{
-		if (s_observer == nullptr)
-		{
-			return false;
-		}
-		return s_observer->OnAluConstants({reinterpret_cast<uintptr_t>(packet), firstWord, values, count});
-	}
-
 	DrawPacketScope::DrawPacketScope(const void* packet)
 	{
 		s_drawPacket = reinterpret_cast<uintptr_t>(packet);

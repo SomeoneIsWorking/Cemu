@@ -368,13 +368,11 @@ void LatteCP_itSetRegistersGeneric_handleSpecialRanges(uint32 registerStartIndex
 template<uint32 TRegisterBase>
 LatteCMDPtr LatteCP_itSetRegistersGeneric(LatteCMDPtr cmd, uint32 nWords)
 {
-	const LatteCMDPtr packet = cmd;
 	nWords--; // subtract the register offset field
 	uint32 registerOffset = LatteReadCMD();
 	uint32 registerIndex = TRegisterBase + registerOffset;
 	uint32 registerStartIndex = registerIndex;
 	uint32 registerEndIndex = registerStartIndex + nWords;
-	const uint32 valueCount = nWords;
 #ifdef CEMU_DEBUG_ASSERT
 	cemu_assert_debug((registerIndex + nWords) <= LATTE_MAX_REGISTER);
 #endif
@@ -412,10 +410,6 @@ LatteCMDPtr LatteCP_itSetRegistersGeneric(LatteCMDPtr cmd, uint32 nWords)
 			cmd += nWords;
 		}
 	}
-	if constexpr (TRegisterBase == LATTE_REG_BASE_ALU_CONST)
-	{
-		LatteFrameHooks::NoteAluConstants(packet, registerOffset, outputReg, valueCount);
-	}
 	// some register writes trigger special behavior
 	LatteCP_itSetRegistersGeneric_handleSpecialRanges<TRegisterBase>(registerStartIndex, registerEndIndex);
 	return cmd;
@@ -425,13 +419,11 @@ LatteCMDPtr LatteCP_itSetRegistersGeneric(LatteCMDPtr cmd, uint32 nWords)
 template<uint32 TRegisterBase, typename TRegRangeCallback>
 bool LatteCP_itSetRegistersGeneric2(LatteCMDPtr cmd, uint32 nWords, TRegRangeCallback cbRegRange)
 {
-	const LatteCMDPtr packet = cmd;
 	nWords--;
 	const uint32 registerOffset = LatteReadCMD();
 	const uint32 registerIndex = TRegisterBase + registerOffset;
 	const uint32 registerStartIndex = registerIndex;
 	const uint32 registerEndIndex = registerStartIndex + nWords - 1;
-	const uint32 valueCount = nWords;
 	cemu_assert_debug((registerIndex + nWords) <= LATTE_MAX_REGISTER);
 
 	uint32* outputReg = (uint32*)(LatteGPUState.contextRegister + registerIndex);
@@ -473,11 +465,6 @@ bool LatteCP_itSetRegistersGeneric2(LatteCMDPtr cmd, uint32 nWords, TRegRangeCal
 			}
 			cmd += nWords;
 		}
-	}
-	if constexpr (TRegisterBase == LATTE_REG_BASE_ALU_CONST)
-	{
-		// A rewrite is a change the draw pass has to upload.
-		hasRegChange |= LatteFrameHooks::NoteAluConstants(packet, registerOffset, outputReg, valueCount);
 	}
 	// some register writes trigger special behavior
 	LatteCP_itSetRegistersGeneric_handleSpecialRanges<TRegisterBase>(registerStartIndex, registerEndIndex);
