@@ -134,12 +134,6 @@ namespace GuestCallProbes
 		constexpr uint32_t kOrImmediate = 0x60000000;        // ori rA, rS, uimm
 		constexpr uint32_t kMoveToCounter = 0x7c0903a6;      // mtctr rS
 		constexpr uint32_t kBranchCount = 0x4e800420;        // bctr
-		// The register the address is built in. Volatile under the EABI, so
-		// clobbering it is allowed between a call and its return -- but the
-		// displaced instruction runs while it holds the address, so a probe whose
-		// displaced instruction names this register would find it changed. Every
-		// probe in this product displaces a link-register save, which does not.
-		constexpr uint32_t kAddressRegister = 12;
 
 		// Write a word of guest code, and tell the recompiler.
 		//
@@ -196,16 +190,17 @@ namespace GuestCallProbes
 			return instruction;
 		}
 
-		void WriteStub(uint32_t stubAddress, HLEIDX hleIndex, uint32_t displaced, uint32_t resume)
+		void WriteStub(uint32_t stubAddress, HLEIDX hleIndex, uint32_t displaced, uint32_t resume,
+		               uint32_t scratch)
 		{
-			const uint32_t registerShift = kAddressRegister << 21;
+			const uint32_t registerShift = scratch << 21;
 			const uint32_t instructions[kStubInstructions] = {
 				displaced,
 				kHleWord((1u << 26) | static_cast<uint32_t>(hleIndex)),
 				// lis r12, resume
 				kLoadUpperImmediate | registerShift | ((resume >> 16) & 0xffff),
 				// ori r12, r12, resume
-				kOrImmediate | registerShift | (kAddressRegister << 16) | (resume & 0xffff),
+				kOrImmediate | registerShift | (scratch << 16) | (resume & 0xffff),
 				kMoveToCounter | registerShift,
 				kBranchCount,
 			};
@@ -222,7 +217,8 @@ namespace GuestCallProbes
 				return Installation::EntryHeldOther;
 			}
 			uint32_t primary = registration.firstInstruction >> 26;
-			if (primary == kPrimaryBranch || primary == kPrimaryBranchConditional)
+			const std::optional<uint32_t> scratch = ScratchRegister(registration.firstInstruction);
+			if (primary == kPrimaryBranch || primary == kPrimaryBranchConditional || !scratch)
 			{
 				return Installation::EntryNotRelocatable;
 			}
@@ -251,7 +247,7 @@ namespace GuestCallProbes
 			}
 			registration.stubAddress = stubAddress;
 			registration.hleAddress = stubAddress + kHleWordIndex * 4;
-			WriteStub(stubAddress, hleIndex, registration.firstInstruction, resume);
+			WriteStub(stubAddress, hleIndex, registration.firstInstruction, resume, *scratch);
 			WriteGuestWord(registration.entry, RelativeBranch(registration.entry, stubAddress));
 			return Installation::Installed;
 		}

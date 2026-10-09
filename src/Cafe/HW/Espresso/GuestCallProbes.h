@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <span>
 
 // Observes calls into one of the title's functions without changing what
@@ -9,9 +10,10 @@
 // A function registered here has its first instruction replaced, once the
 // title is linked and before any of its code runs, by a branch to a stub:
 // an HLE call that tells the probe the caller's registers, the instruction
-// it displaced, and a branch back to the instruction after it. The stub
-// touches no register, so any first instruction but a relative branch runs
-// from it as it did in place.
+// it displaced, and a branch back to the instruction after it. The branch
+// back takes the count register and one volatile register the displaced
+// instruction does not name, so any first instruction but a relative branch
+// runs from the stub as it did in place.
 // Nothing else is patched, so a registration whose entry does not hold the
 // instruction it names, or holds one that cannot run elsewhere, is refused
 // and left alone. With nothing registered this is a no-op and the build
@@ -26,8 +28,9 @@ namespace GuestCallProbes
 		// The entry held another instruction: another executable, or another
 		// revision of it. Left as it was.
 		EntryHeldOther,
-		// The entry's instruction branches relative to where it stands, so it
-		// cannot run from the stub. Left as it was.
+		// The entry's instruction branches relative to where it stands, or names
+		// every register the stub could branch back through, so it cannot run
+		// from the stub. Left as it was.
 		EntryNotRelocatable,
 		// No code space for the stub within a branch's reach of the function.
 		NoCodeSpace,
@@ -77,6 +80,29 @@ namespace GuestCallProbes
 	// fixed at entry + 4 there is nowhere to send it.
 	void Register(uint32_t entry, uint32_t firstInstruction, Probe& probe, bool holdsEntry = true,
 	              uint32_t resume = 0);
+
+	// The volatile register the stub builds its branch back in for a displaced
+	// instruction: one the instruction names in none of its register fields,
+	// or none. The displaced word runs first and may set one (the g3d block
+	// commit opens with `or r12,r3,r3`).
+	constexpr std::optional<uint32_t> ScratchRegister(uint32_t displaced)
+	{
+		constexpr uint32_t candidates[] = {12, 11, 0};
+		constexpr uint32_t fieldShifts[] = {21, 16, 11};
+		for (uint32_t candidate : candidates)
+		{
+			bool named = false;
+			for (uint32_t shift : fieldShifts)
+			{
+				named = named || ((displaced >> shift) & 0x1f) == candidate;
+			}
+			if (!named)
+			{
+				return candidate;
+			}
+		}
+		return std::nullopt;
+	}
 
 	// The host bytes behind `size` bytes of guest memory at `address`, or
 	// null unless all of them are mapped: a probe reads the title's objects
