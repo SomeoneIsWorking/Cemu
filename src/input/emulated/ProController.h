@@ -58,6 +58,8 @@ public:
 	glm::vec2 get_trigger() const override;
 
 	static uint32 s_get_emulated_button_flag(uint32 id);
+	// The Pro Controller's hold bits for an InputHooks button mask.
+	static uint32 s_hold_from_hook_buttons(uint32 hook_buttons);
 
 	static std::string_view get_button_name(ButtonId id);
 

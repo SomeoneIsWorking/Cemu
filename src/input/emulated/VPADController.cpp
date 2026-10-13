@@ -1,5 +1,5 @@
 #include "input/emulated/VPADController.h"
-#include "input/VPADInputHooks.h"
+#include "input/InputHooks.h"
 #include "input/api/Controller.h"
 #ifdef HAS_SDL
 #include "input/api/SDL/SDLController.h"
@@ -47,7 +47,7 @@ enum ControllerVPADMapping2 : uint32
 	VPAD_REPEAT = 0x80000000,
 };
 
-namespace VPADInputHooks {
+namespace InputHooks {
 namespace {
 Source* g_source = nullptr;
 }
@@ -61,24 +61,24 @@ Source* GetSource()
 {
 	return g_source;
 }
-} // namespace VPADInputHooks
+} // namespace InputHooks
 
 // The hook header carries its own copy of these so a consumer needs only that
 // header. A copy that can drift is worse than an include, so it cannot.
-static_assert(VPADInputHooks::kButtonA == VPAD_A);
-static_assert(VPADInputHooks::kButtonB == VPAD_B);
-static_assert(VPADInputHooks::kButtonX == VPAD_X);
-static_assert(VPADInputHooks::kButtonY == VPAD_Y);
-static_assert(VPADInputHooks::kButtonL == VPAD_L);
-static_assert(VPADInputHooks::kButtonR == VPAD_R);
-static_assert(VPADInputHooks::kButtonZL == VPAD_ZL);
-static_assert(VPADInputHooks::kButtonZR == VPAD_ZR);
-static_assert(VPADInputHooks::kButtonPlus == VPAD_PLUS);
-static_assert(VPADInputHooks::kButtonMinus == VPAD_MINUS);
-static_assert(VPADInputHooks::kButtonUp == VPAD_UP);
-static_assert(VPADInputHooks::kButtonDown == VPAD_DOWN);
-static_assert(VPADInputHooks::kButtonLeft == VPAD_LEFT);
-static_assert(VPADInputHooks::kButtonRight == VPAD_RIGHT);
+static_assert(uint32{InputHooks::kButtonA} == uint32{VPAD_A});
+static_assert(uint32{InputHooks::kButtonB} == uint32{VPAD_B});
+static_assert(uint32{InputHooks::kButtonX} == uint32{VPAD_X});
+static_assert(uint32{InputHooks::kButtonY} == uint32{VPAD_Y});
+static_assert(uint32{InputHooks::kButtonL} == uint32{VPAD_L});
+static_assert(uint32{InputHooks::kButtonR} == uint32{VPAD_R});
+static_assert(uint32{InputHooks::kButtonZL} == uint32{VPAD_ZL});
+static_assert(uint32{InputHooks::kButtonZR} == uint32{VPAD_ZR});
+static_assert(uint32{InputHooks::kButtonPlus} == uint32{VPAD_PLUS});
+static_assert(uint32{InputHooks::kButtonMinus} == uint32{VPAD_MINUS});
+static_assert(uint32{InputHooks::kButtonUp} == uint32{VPAD_UP});
+static_assert(uint32{InputHooks::kButtonDown} == uint32{VPAD_DOWN});
+static_assert(uint32{InputHooks::kButtonLeft} == uint32{VPAD_LEFT});
+static_assert(uint32{InputHooks::kButtonRight} == uint32{VPAD_RIGHT});
 
 void VPADController::VPADRead(VPADStatus_t& status, const BtnRepeat& repeat)
 {
@@ -116,9 +116,9 @@ void VPADController::VPADRead(VPADStatus_t& status, const BtnRepeat& repeat)
 	// an injected press produces a real press and a real release.
 	auto axis = get_axis();
 	auto rotation = get_rotation();
-	if (VPADInputHooks::Source* source = VPADInputHooks::GetSource())
+	if (InputHooks::Source* source = InputHooks::GetSource())
 	{
-		VPADInputHooks::Injection injection;
+		InputHooks::Injection injection;
 		if (source->Poll(m_player_index, injection))
 		{
 			status.hold |= injection.holdMask;

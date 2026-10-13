@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-// The one boundary through which a first-party runtime supplies gamepad input.
+// The one boundary through which a first-party runtime supplies controller input.
 //
 // It exists because an agent has to be able to drive the product, not only
 // launch it and read what came out. A run nobody can press a button in never
@@ -15,11 +15,12 @@
 // and release edges are derived from it. An injected press therefore produces
 // the same edges a physical press does, and everything downstream -- the VPAD
 // HLE, the title -- is the shipping path unchanged.
-namespace VPADInputHooks {
+namespace InputHooks {
 
-// The Wii U gamepad hold bits, as the emulated controller composes them.
+// The buttons a source names, in the GamePad's hold bits. The GamePad read uses
+// them as they are and a Pro Controller read translates them to its own bits.
 // Duplicated here so a consumer needs this header alone; the values are
-// checked against the emulator's own enum where that enum is defined, so a
+// checked against the emulator's own enums where those are defined, so a
 // change there fails the build rather than silently pressing the wrong
 // button.
 enum Button : uint32_t {
@@ -49,7 +50,7 @@ struct Injection {
     float rightStickY{0.0f};
 };
 
-// Asked once per gamepad read. Returning false means this player is not
+// Asked once per controller read. Returning false means this player is not
 // driven and the physical controllers decide, which is the behaviour when
 // nothing is installed at all.
 class Source {
@@ -63,4 +64,4 @@ class Source {
 void SetSource(Source* source);
 Source* GetSource();
 
-} // namespace VPADInputHooks
+} // namespace InputHooks

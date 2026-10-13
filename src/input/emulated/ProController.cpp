@@ -1,9 +1,37 @@
 #include "input/emulated/ProController.h"
+#include "input/InputHooks.h"
 
 #include "input/api/Controller.h"
 #ifdef HAS_SDL
 #include "input/api/SDL/SDLController.h"
 #endif
+
+uint32 ProController::s_hold_from_hook_buttons(uint32 hook_buttons)
+{
+	constexpr std::pair<uint32, uint32> kHookToPro[] = {
+		{InputHooks::kButtonA, kProButton_A},
+		{InputHooks::kButtonB, kProButton_B},
+		{InputHooks::kButtonX, kProButton_X},
+		{InputHooks::kButtonY, kProButton_Y},
+		{InputHooks::kButtonL, kProButton_L},
+		{InputHooks::kButtonR, kProButton_R},
+		{InputHooks::kButtonZL, kProButton_ZL},
+		{InputHooks::kButtonZR, kProButton_ZR},
+		{InputHooks::kButtonPlus, kProButton_Plus},
+		{InputHooks::kButtonMinus, kProButton_Minus},
+		{InputHooks::kButtonUp, kProButton_Up},
+		{InputHooks::kButtonDown, kProButton_Down},
+		{InputHooks::kButtonLeft, kProButton_Left},
+		{InputHooks::kButtonRight, kProButton_Right},
+	};
+	uint32 hold = 0;
+	for (const auto& [hook, pro] : kHookToPro)
+	{
+		if (HAS_FLAG(hook_buttons, hook))
+			hold |= pro;
+	}
+	return hold;
+}
 
 ProController::ProController(size_t player_index)
 	: WPADController(player_index, kDataFormat_URCC)

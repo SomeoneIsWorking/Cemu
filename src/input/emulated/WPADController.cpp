@@ -1,5 +1,6 @@
 #include <api/Controller.h>
 #include "input/emulated/WPADController.h"
+#include "input/InputHooks.h"
 
 #include "input/emulated/ClassicController.h"
 #include "input/emulated/ProController.h"
@@ -211,7 +212,22 @@ void WPADController::KPADRead(KPADStatus_t& status, const BtnRepeat& repeat)
 	}
 
 	m_homebutton_down |= is_home_down();
-	
+
+	// A driven player's input joins where a physical controller's would have:
+	// the hold mask is complete and the edges are not yet derived.
+	auto axis = get_axis();
+	auto rotation = get_rotation();
+	if (InputHooks::Source* source = InputHooks::GetSource(); source && type() == Pro)
+	{
+		InputHooks::Injection injection;
+		if (source->Poll(m_player_index, injection))
+		{
+			*hold |= ProController::s_hold_from_hook_buttons(injection.holdMask);
+			axis = {injection.leftStickX, injection.leftStickY};
+			rotation = {injection.rightStickX, injection.rightStickY};
+		}
+	}
+
 	// button repeat
 	const auto now = std::chrono::steady_clock::now();
 	if (*hold != m_last_holdvalue)
@@ -230,10 +246,6 @@ void WPADController::KPADRead(KPADStatus_t& status, const BtnRepeat& repeat)
 			}
 		}
 	}
-
-	// axis
-	const auto axis = get_axis();
-	const auto rotation = get_rotation();
 
 	*release = m_last_holdvalue & ~*hold;
 	//status.release = m_last_holdvalue & ~*hold;
