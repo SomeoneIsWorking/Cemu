@@ -468,6 +468,7 @@ add_library(CemuCafe
   OS/libs/snd_user/snd_user.h
   OS/libs/swkbd/swkbd.cpp
   OS/libs/swkbd/swkbd.h
+  OS/libs/swkbd/SwkbdHooks.h
   OS/libs/sysapp/sysapp.cpp
   OS/libs/sysapp/sysapp.h
   OS/libs/TCL/TCL.cpp

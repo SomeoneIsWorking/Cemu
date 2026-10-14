@@ -1,6 +1,7 @@
 #include "Cafe/OS/common/OSCommon.h"
 #include "Cafe/OS/libs/coreinit/coreinit_FS.h"
 #include "Cafe/OS/libs/gx2/GX2.h"
+#include "Cafe/OS/libs/swkbd/SwkbdHooks.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 
 #include <imgui.h>
@@ -86,6 +87,26 @@ typedef struct
 }swkbdInternalState_t;
 
 swkbdInternalState_t* swkbdInternalState = nullptr;
+
+namespace SwkbdHooks
+{
+	namespace
+	{
+		InitialText* s_initialText = nullptr;
+	}
+
+	void SetInitialText(InitialText* source)
+	{
+		s_initialText = source;
+	}
+
+	InitialText* GetInitialText()
+	{
+		return s_initialText;
+	}
+}
+
+void swkbd_inputStringChanged();
 sint32 isNeedCalcSubThreadFont = 0;
 sint32 isNeedCalcSubThreadPredict = 0;
 
@@ -241,6 +262,20 @@ uint32 SwkbdAppearKeyboard(const SwkbdKeyboardArg_t* keyboardArg)
 	swkbdInternalState->formStringBuffer[0] = '\0';
 	swkbdInternalState->formStringLength = 0;
 	swkbdInternalState->keyboardArg = *keyboardArg;
+	if (SwkbdHooks::InitialText* source = SwkbdHooks::GetInitialText())
+	{
+		const std::u16string text = source->Provide();
+		const sint32 bufferSize = (sint32)swkbdInternalState->keyboardArg.receiverArg.stringBufSize;
+		const sint32 length = std::min({(sint32)text.size(), bufferSize - 1, SWKBD_FORM_STRING_MAX_LENGTH - 1});
+		for (sint32 i = 0; i < length; i++)
+			swkbdInternalState->formStringBuffer[i] = text[i];
+		if (length > 0)
+		{
+			swkbdInternalState->formStringLength = length;
+			swkbdInternalState->formStringBuffer[length] = '\0';
+			swkbd_inputStringChanged();
+		}
+	}
 	return 1;
 }
 
